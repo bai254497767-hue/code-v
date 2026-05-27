@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*.pyo
+
+.idea/
+.DS_Store
+
+output_lg/
+
+coding_agent_lg/projects.db-shm
+coding_agent_lg/projects.db-wal
