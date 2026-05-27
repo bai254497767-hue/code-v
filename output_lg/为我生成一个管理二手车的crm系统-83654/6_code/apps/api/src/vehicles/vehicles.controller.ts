@@ -1,15 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpCode,
-  Param,
-  ParseIntPipe,
-  Patch,
-  Post,
-  Query
-} from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query } from "@nestjs/common";
 import { CreateVehicleImageDto } from "./dto/create-vehicle-image.dto";
 import { CreateVehicleDto } from "./dto/create-vehicle.dto";
 import { QueryVehiclesDto } from "./dto/query-vehicles.dto";
@@ -57,8 +46,8 @@ export class VehiclesController {
   }
 
   @Post(":id/images")
-  createImage(@Param("id", ParseIntPipe) id: number, @Body() dto: CreateVehicleImageDto) {
-    return this.vehiclesService.createImage(id, dto);
+  addImage(@Param("id", ParseIntPipe) id: number, @Body() dto: CreateVehicleImageDto) {
+    return this.vehiclesService.addImage(id, dto);
   }
 
   @Get(":id/images")
@@ -67,12 +56,8 @@ export class VehiclesController {
   }
 
   @Delete(":id/images/:image_id")
-  @HttpCode(204)
-  deleteImage(
-    @Param("id", ParseIntPipe) id: number,
-    @Param("image_id", ParseIntPipe) imageId: number
-  ) {
-    this.vehiclesService.deleteImage(id, imageId);
+  removeImage(@Param("id", ParseIntPipe) id: number, @Param("image_id", ParseIntPipe) imageId: number) {
+    return this.vehiclesService.removeImage(id, imageId);
   }
 
   @Get(":id/status-histories")

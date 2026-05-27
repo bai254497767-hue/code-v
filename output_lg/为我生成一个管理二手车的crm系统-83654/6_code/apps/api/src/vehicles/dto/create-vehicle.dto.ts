@@ -6,20 +6,24 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  MaxLength,
   Min
 } from "class-validator";
 
 export class CreateVehicleDto {
   @IsString()
   @IsNotEmpty()
+  @MaxLength(80)
   brand!: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(80)
   series!: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(120)
   model!: string;
 
   @Type(() => Number)
@@ -32,20 +36,24 @@ export class CreateVehicleDto {
   @Min(0)
   mileage!: number;
 
-  @IsString()
   @IsOptional()
+  @IsString()
+  @MaxLength(40)
   color?: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
+  @MaxLength(40)
   displacement?: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
+  @MaxLength(40)
   plate_number?: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(40)
   vin!: string;
 
   @Type(() => Number)
@@ -58,35 +66,42 @@ export class CreateVehicleDto {
   @Min(0)
   sale_price!: number;
 
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
-  @IsOptional()
   reconditioning_cost?: number;
 
-  @IsObject()
   @IsOptional()
+  @IsObject()
   configuration?: Record<string, unknown>;
 
-  @IsString()
   @IsOptional()
+  @IsString()
   condition_description?: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
   remark?: string;
 
-  @IsString()
   @IsOptional()
+  @IsString()
   status?: string;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @IsOptional()
   owner_id?: number;
 
   @Type(() => Number)
   @IsInt()
+  store_id!: number;
+
   @IsOptional()
-  store_id?: number;
+  @Type(() => Date)
+  listed_at?: Date;
+
+  @IsOptional()
+  @Type(() => Date)
+  stock_in_at?: Date;
 }
