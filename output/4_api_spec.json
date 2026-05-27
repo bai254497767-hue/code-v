@@ -1,0 +1,1045 @@
+{
+  "data_models": [
+    {
+      "name": "User",
+      "fields": [
+        {
+          "name": "id",
+          "type": "integer",
+          "description": "主键，自增"
+        },
+        {
+          "name": "email",
+          "type": "string(255)",
+          "description": "登录邮箱，唯一，不可为空"
+        },
+        {
+          "name": "nickname",
+          "type": "string(50)",
+          "description": "显示昵称，可修改"
+        },
+        {
+          "name": "avatar_url",
+          "type": "string(500)",
+          "description": "头像图片 URL，可为空"
+        },
+        {
+          "name": "password_hash",
+          "type": "string(255)",
+          "description": "bcrypt 哈希密码"
+        },
+        {
+          "name": "is_verified",
+          "type": "boolean",
+          "description": "邮箱是否已验证，默认 false"
+        },
+        {
+          "name": "is_active",
+          "type": "boolean",
+          "description": "账户是否有效（未注销），默认 true"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "description": "注册时间，自动填充"
+        },
+        {
+          "name": "updated_at",
+          "type": "datetime",
+          "description": "最后修改时间，自动更新"
+        }
+      ]
+    },
+    {
+      "name": "EmailVerificationToken",
+      "fields": [
+        {
+          "name": "id",
+          "type": "integer",
+          "description": "主键，自增"
+        },
+        {
+          "name": "user_id",
+          "type": "integer",
+          "description": "外键，关联 User.id"
+        },
+        {
+          "name": "token",
+          "type": "string(128)",
+          "description": "UUID 随机令牌，唯一"
+        },
+        {
+          "name": "token_type",
+          "type": "enum('email_verify','password_reset')",
+          "description": "令牌用途类型"
+        },
+        {
+          "name": "expires_at",
+          "type": "datetime",
+          "description": "令牌过期时间"
+        },
+        {
+          "name": "used_at",
+          "type": "datetime",
+          "description": "令牌被使用的时间，null 表示未使用"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "description": "创建时间"
+        }
+      ]
+    },
+    {
+      "name": "UserPreference",
+      "fields": [
+        {
+          "name": "id",
+          "type": "integer",
+          "description": "主键，自增"
+        },
+        {
+          "name": "user_id",
+          "type": "integer",
+          "description": "外键，关联 User.id，唯一"
+        },
+        {
+          "name": "default_sort",
+          "type": "enum('created_at','due_date','priority')",
+          "description": "任务列表默认排序方式，默认 created_at"
+        },
+        {
+          "name": "reminder_advance",
+          "type": "enum('none','1h','1d')",
+          "description": "截止日期提醒提前量，默认 1h"
+        },
+        {
+          "name": "show_completed",
+          "type": "boolean",
+          "description": "是否默认展示已完成任务，默认 false"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "description": "创建时间"
+        },
+        {
+          "name": "updated_at",
+          "type": "datetime",
+          "description": "最后修改时间"
+        }
+      ]
+    },
+    {
+      "name": "Category",
+      "fields": [
+        {
+          "name": "id",
+          "type": "integer",
+          "description": "主键，自增"
+        },
+        {
+          "name": "user_id",
+          "type": "integer",
+          "description": "外键，关联 User.id，分类归属用户"
+        },
+        {
+          "name": "name",
+          "type": "string(30)",
+          "description": "分类名称，同一用户下唯一，最长30字符"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "description": "创建时间"
+        },
+        {
+          "name": "updated_at",
+          "type": "datetime",
+          "description": "最后修改时间"
+        }
+      ]
+    },
+    {
+      "name": "Tag",
+      "fields": [
+        {
+          "name": "id",
+          "type": "integer",
+          "description": "主键，自增"
+        },
+        {
+          "name": "user_id",
+          "type": "integer",
+          "description": "外键，关联 User.id，标签归属用户"
+        },
+        {
+          "name": "name",
+          "type": "string(20)",
+          "description": "标签名称，同一用户下唯一，最长20字符"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "description": "创建时间"
+        },
+        {
+          "name": "updated_at",
+          "type": "datetime",
+          "description": "最后修改时间"
+        }
+      ]
+    },
+    {
+      "name": "Task",
+      "fields": [
+        {
+          "name": "id",
+          "type": "integer",
+          "description": "主键，自增"
+        },
+        {
+          "name": "user_id",
+          "type": "integer",
+          "description": "外键，关联 User.id，任务归属用户"
+        },
+        {
+          "name": "category_id",
+          "type": "integer",
+          "description": "外键，关联 Category.id，可为 null（未分类）"
+        },
+        {
+          "name": "title",
+          "type": "string(200)",
+          "description": "任务标题，必填，最长200字符"
+        },
+        {
+          "name": "description",
+          "type": "text",
+          "description": "任务备注/描述，可为空，最长2000字符"
+        },
+        {
+          "name": "status",
+          "type": "enum('pending','completed')",
+          "description": "任务状态，默认 pending"
+        },
+        {
+          "name": "priority",
+          "type": "enum('high','medium','low')",
+          "description": "优先级，默认 medium"
+        },
+        {
+          "name": "due_date",
+          "type": "date",
+          "description": "截止日期（精确到天），可为空"
+        },
+        {
+          "name": "reminder_sent_at",
+          "type": "datetime",
+          "description": "最近一次提醒发送时间，null 表示未发送，用于防止重复提醒"
+        },
+        {
+          "name": "completed_at",
+          "type": "datetime",
+          "description": "任务完成时间，pending 时为 null"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "description": "创建时间"
+        },
+        {
+          "name": "updated_at",
+          "type": "datetime",
+          "description": "最后修改时间"
+        }
+      ]
+    },
+    {
+      "name": "TaskTag",
+      "fields": [
+        {
+          "name": "id",
+          "type": "integer",
+          "description": "主键，自增"
+        },
+        {
+          "name": "task_id",
+          "type": "integer",
+          "description": "外键，关联 Task.id"
+        },
+        {
+          "name": "tag_id",
+          "type": "integer",
+          "description": "外键，关联 Tag.id"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "description": "关联创建时间"
+        },
+        {
+          "name": "_unique",
+          "type": "constraint",
+          "description": "联合唯一约束：(task_id, tag_id)"
+        }
+      ]
+    },
+    {
+      "name": "PushSubscription",
+      "fields": [
+        {
+          "name": "id",
+          "type": "integer",
+          "description": "主键，自增"
+        },
+        {
+          "name": "user_id",
+          "type": "integer",
+          "description": "外键，关联 User.id"
+        },
+        {
+          "name": "endpoint",
+          "type": "string(500)",
+          "description": "浏览器 Push 服务端点 URL，唯一"
+        },
+        {
+          "name": "p256dh_key",
+          "type": "string(255)",
+          "description": "ECDH 公钥，用于加密推送内容"
+        },
+        {
+          "name": "auth_key",
+          "type": "string(255)",
+          "description": "认证密钥"
+        },
+        {
+          "name": "user_agent",
+          "type": "string(300)",
+          "description": "订阅来源的浏览器 UA，便于多设备管理"
+        },
+        {
+          "name": "created_at",
+          "type": "datetime",
+          "description": "订阅创建时间"
+        }
+      ]
+    }
+  ],
+  "endpoints": [
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/register",
+      "description": "用户注册（F001）：校验邮箱格式与密码强度，创建账户并发送验证邮件",
+      "request_body": {
+        "email": "string, 必填，合法邮箱格式",
+        "password": "string, 必填，至少8位，需含字母和数字",
+        "nickname": "string, 必填，2~50字符"
+      },
+      "response": {
+        "201": {
+          "message": "注册成功，验证邮件已发送",
+          "user_id": "integer"
+        },
+        "400": {
+          "error": "string",
+          "detail": "如：邮箱格式不合法 / 密码强度不足 / 邮箱已被注册"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/verify-email",
+      "description": "激活邮箱（F001）：用户点击邮件中链接携带 token 完成账户激活",
+      "request_body": {
+        "token": "string, 必填，邮件中的验证令牌"
+      },
+      "response": {
+        "200": {
+          "message": "邮箱验证成功，账户已激活"
+        },
+        "400": {
+          "error": "token 无效或已过期"
+        },
+        "409": {
+          "error": "账户已激活，无需重复验证"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/login",
+      "description": "用户登录（F001）：邮箱+密码验证，返回 JWT access_token 和 refresh_token",
+      "request_body": {
+        "email": "string, 必填",
+        "password": "string, 必填",
+        "remember_me": "boolean, 可选，true 时 refresh_token 有效期延长至30天，默认7天"
+      },
+      "response": {
+        "200": {
+          "access_token": "string, JWT，有效期15分钟",
+          "refresh_token": "string, JWT，有效期7天或30天",
+          "token_type": "Bearer",
+          "user": {
+            "id": "integer",
+            "email": "string",
+            "nickname": "string",
+            "avatar_url": "string",
+            "is_verified": "boolean"
+          }
+        },
+        "400": {
+          "error": "邮箱或密码错误"
+        },
+        "403": {
+          "error": "账户邮箱尚未验证，请先激活账户"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/refresh-token",
+      "description": "刷新 Access Token（F001）：用 refresh_token 换取新的 access_token，实现无感续期",
+      "request_body": {
+        "refresh_token": "string, 必填"
+      },
+      "response": {
+        "200": {
+          "access_token": "string",
+          "token_type": "Bearer"
+        },
+        "401": {
+          "error": "refresh_token 无效或已过期，请重新登录"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/logout",
+      "description": "用户退出登录（F001）：将 refresh_token 加入 Redis 黑名单，使会话失效",
+      "request_body": {
+        "refresh_token": "string, 必填"
+      },
+      "response": {
+        "200": {
+          "message": "已成功退出登录"
+        },
+        "401": {
+          "error": "未授权"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/forgot-password",
+      "description": "忘记密码 - 发送重置邮件（F001）：向邮箱发送密码重置链接",
+      "request_body": {
+        "email": "string, 必填"
+      },
+      "response": {
+        "200": {
+          "message": "如果该邮箱已注册，重置邮件将发送至您的邮箱"
+        },
+        "429": {
+          "error": "操作过于频繁，请60秒后再试"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/reset-password",
+      "description": "重置密码（F001）：验证 token 后设置新密码",
+      "request_body": {
+        "token": "string, 必填，重置邮件中的令牌",
+        "new_password": "string, 必填，至少8位"
+      },
+      "response": {
+        "200": {
+          "message": "密码重置成功，请重新登录"
+        },
+        "400": {
+          "error": "token 无效或已过期 / 密码强度不足"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/me",
+      "description": "获取当前用户信息（F013）",
+      "request_body": null,
+      "response": {
+        "200": {
+          "id": "integer",
+          "email": "string",
+          "nickname": "string",
+          "avatar_url": "string | null",
+          "is_verified": "boolean",
+          "created_at": "datetime"
+        },
+        "401": {
+          "error": "未授权"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/users/me",
+      "description": "修改账户昵称与头像（F013）",
+      "request_body": {
+        "nickname": "string, 可选，2~50字符",
+        "avatar_url": "string, 可选，图片 URL"
+      },
+      "response": {
+        "200": {
+          "id": "integer",
+          "nickname": "string",
+          "avatar_url": "string"
+        },
+        "400": {
+          "error": "参数校验失败"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/users/me/password",
+      "description": "修改登录密码（F013）：需验证原密码",
+      "request_body": {
+        "old_password": "string, 必填",
+        "new_password": "string, 必填，至少8位"
+      },
+      "response": {
+        "200": {
+          "message": "密码修改成功"
+        },
+        "400": {
+          "error": "新密码强度不足"
+        },
+        "401": {
+          "error": "原密码错误"
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/users/me",
+      "description": "注销账户（F013）：二次确认后永久删除用户及所有数据（任务/分类/标签），异步执行清理",
+      "request_body": {
+        "password": "string, 必填，需验证身份",
+        "confirm_phrase": "string, 必填，用户需输入固定确认短语 'DELETE MY ACCOUNT'"
+      },
+      "response": {
+        "200": {
+          "message": "账户注销成功，所有数据已清除"
+        },
+        "400": {
+          "error": "确认短语不匹配"
+        },
+        "401": {
+          "error": "密码验证失败"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/users/me/preferences",
+      "description": "获取用户偏好设置（F009/F011/F013）",
+      "request_body": null,
+      "response": {
+        "200": {
+          "default_sort": "string: created_at | due_date | priority",
+          "reminder_advance": "string: none | 1h | 1d",
+          "show_completed": "boolean"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/users/me/preferences",
+      "description": "更新用户偏好设置（F009/F011/F013）",
+      "request_body": {
+        "default_sort": "string, 可选，枚举：created_at | due_date | priority",
+        "reminder_advance": "string, 可选，枚举：none | 1h | 1d",
+        "show_completed": "boolean, 可选"
+      },
+      "response": {
+        "200": {
+          "default_sort": "string",
+          "reminder_advance": "string",
+          "show_completed": "boolean"
+        },
+        "400": {
+          "error": "参数值不合法"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/categories",
+      "description": "获取当前用户的所有分类列表，附带每个分类的未完成任务数（F006）",
+      "request_body": null,
+      "response": {
+        "200": {
+          "items": [
+            {
+              "id": "integer",
+              "name": "string",
+              "pending_task_count": "integer",
+              "created_at": "datetime"
+            }
+          ],
+          "total": "integer"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/categories",
+      "description": "创建新分类（F006）",
+      "request_body": {
+        "name": "string, 必填，1~30字符，同一用户下唯一"
+      },
+      "response": {
+        "201": {
+          "id": "integer",
+          "name": "string",
+          "created_at": "datetime"
+        },
+        "400": {
+          "error": "分类名称不能为空 / 超出长度限制"
+        },
+        "409": {
+          "error": "分类名称已存在"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/categories/{category_id}",
+      "description": "修改分类名称（F006）",
+      "request_body": {
+        "name": "string, 必填，1~30字符"
+      },
+      "response": {
+        "200": {
+          "id": "integer",
+          "name": "string",
+          "updated_at": "datetime"
+        },
+        "404": {
+          "error": "分类不存在"
+        },
+        "409": {
+          "error": "分类名称已存在"
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/categories/{category_id}",
+      "description": "删除分类（F006）：该分类下的任务 category_id 置为 null（归入未分类）",
+      "request_body": null,
+      "response": {
+        "200": {
+          "message": "分类已删除，原分类下 N 条任务已移至未分类",
+          "affected_task_count": "integer"
+        },
+        "404": {
+          "error": "分类不存在"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tags",
+      "description": "获取当前用户所有标签，支持关键词搜索（用于输入自动补全，F007）",
+      "request_body": null,
+      "response": {
+        "200": {
+          "items": [
+            {
+              "id": "integer",
+              "name": "string",
+              "task_count": "integer",
+              "created_at": "datetime"
+            }
+          ],
+          "total": "integer"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tags",
+      "description": "创建新标签（F007）",
+      "request_body": {
+        "name": "string, 必填，1~20字符，同一用户下唯一"
+      },
+      "response": {
+        "201": {
+          "id": "integer",
+          "name": "string",
+          "created_at": "datetime"
+        },
+        "400": {
+          "error": "标签名称不能为空 / 超出长度限制"
+        },
+        "409": {
+          "error": "标签已存在"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/tags/{tag_id}",
+      "description": "重命名标签（F007）：级联更新所有关联任务的标签名",
+      "request_body": {
+        "name": "string, 必填，1~20字符"
+      },
+      "response": {
+        "200": {
+          "id": "integer",
+          "name": "string",
+          "updated_at": "datetime"
+        },
+        "404": {
+          "error": "标签不存在"
+        },
+        "409": {
+          "error": "标签名称已存在"
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/tags/{tag_id}",
+      "description": "删除标签（F007）：同步删除所有任务上的该标签关联",
+      "request_body": null,
+      "response": {
+        "200": {
+          "message": "标签已删除"
+        },
+        "404": {
+          "error": "标签不存在"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tasks",
+      "description": "获取任务列表，支持多维筛选、搜索、排序与分页（F002/F004/F005/F006/F007/F008/F010/F011）",
+      "request_body": null,
+      "response": {
+        "200": {
+          "items": [
+            {
+              "id": "integer",
+              "title": "string",
+              "description": "string | null",
+              "status": "pending | completed",
+              "priority": "high | medium | low",
+              "due_date": "date | null",
+              "is_overdue": "boolean",
+              "category": {
+                "id": "integer",
+                "name": "string"
+              },
+              "tags": [
+                {
+                  "id": "integer",
+                  "name": "string"
+                }
+              ],
+              "completed_at": "datetime | null",
+              "created_at": "datetime",
+              "updated_at": "datetime"
+            }
+          ],
+          "total": "integer",
+          "page": "integer",
+          "page_size": "integer",
+          "total_pages": "integer"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/tasks",
+      "description": "创建任务（F002）：支持快速创建（仅标题）和完整创建",
+      "request_body": {
+        "title": "string, 必填，1~200字符",
+        "description": "string, 可选，最长2000字符",
+        "priority": "string, 可选，枚举：high | medium | low，默认 medium",
+        "due_date": "date, 可选，格式 YYYY-MM-DD",
+        "category_id": "integer, 可选，所属分类 ID",
+        "tag_ids": "array[integer], 可选，标签 ID 列表，最多10个"
+      },
+      "response": {
+        "201": {
+          "id": "integer",
+          "title": "string",
+          "description": "string | null",
+          "status": "pending",
+          "priority": "string",
+          "due_date": "date | null",
+          "category": {
+            "id": "integer",
+            "name": "string"
+          },
+          "tags": [
+            {
+              "id": "integer",
+              "name": "string"
+            }
+          ],
+          "created_at": "datetime"
+        },
+        "400": {
+          "error": "标题不能为空 / 标题超出200字符限制 / 标签数量超出上限10个"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tasks/{task_id}",
+      "description": "获取单条任务详情（F003）",
+      "request_body": null,
+      "response": {
+        "200": {
+          "id": "integer",
+          "title": "string",
+          "description": "string | null",
+          "status": "pending | completed",
+          "priority": "high | medium | low",
+          "due_date": "date | null",
+          "is_overdue": "boolean",
+          "category": {
+            "id": "integer",
+            "name": "string"
+          },
+          "tags": [
+            {
+              "id": "integer",
+              "name": "string"
+            }
+          ],
+          "completed_at": "datetime | null",
+          "created_at": "datetime",
+          "updated_at": "datetime"
+        },
+        "404": {
+          "error": "任务不存在"
+        }
+      }
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/tasks/{task_id}",
+      "description": "全量更新任务信息（F003/F005/F006/F007/F008）",
+      "request_body": {
+        "title": "string, 必填，1~200字符",
+        "description": "string, 可选，最长2000字符",
+        "priority": "string, 必填，枚举：high | medium | low",
+        "due_date": "date | null, 可选，传 null 表示清除截止日期",
+        "category_id": "integer | null, 可选，传 null 表示移至未分类",
+        "tag_ids": "array[integer], 必填，最多10个，传空数组表示清除所有标签"
+      },
+      "response": {
+        "200": {
+          "id": "integer",
+          "title": "string",
+          "description": "string | null",
+          "priority": "string",
+          "due_date": "date | null",
+          "category": {
+            "id": "integer | null",
+            "name": "string | null"
+          },
+          "tags": [
+            {
+              "id": "integer",
+              "name": "string"
+            }
+          ],
+          "updated_at": "datetime"
+        },
+        "400": {
+          "error": "参数校验失败"
+        },
+        "404": {
+          "error": "任务不存在"
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/tasks/{task_id}",
+      "description": "永久删除任务（F003）",
+      "request_body": null,
+      "response": {
+        "200": {
+          "message": "任务已删除"
+        },
+        "404": {
+          "error": "任务不存在"
+        }
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/tasks/{task_id}/status",
+      "description": "切换任务完成状态（F004）：pending ↔ completed，更新 completed_at 时间戳",
+      "request_body": {
+        "status": "string, 必填，枚举：pending | completed"
+      },
+      "response": {
+        "200": {
+          "id": "integer",
+          "status": "pending | completed",
+          "completed_at": "datetime | null",
+          "updated_at": "datetime"
+        },
+        "404": {
+          "error": "任务不存在"
+        }
+      }
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/tasks/{task_id}/priority",
+      "description": "快速切换任务优先级（F005）：在列表中无需进入编辑页直接切换",
+      "request_body": {
+        "priority": "string, 必填，枚举：high | medium | low"
+      },
+      "response": {
+        "200": {
+          "id": "integer",
+          "priority": "string",
+          "updated_at": "datetime"
+        },
+        "400": {
+          "error": "优先级值不合法"
+        },
+        "404": {
+          "error": "任务不存在"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tasks/stats/today",
+      "description": "获取今日任务完成进度统计（F004）：用于进度条展示",
+      "request_body": null,
+      "response": {
+        "200": {
+          "total": "integer, 今日任务总数",
+          "completed": "integer, 已完成数",
+          "pending": "integer, 待完成数",
+          "completion_rate": "float, 完成率，0.0~1.0"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tasks/views/today",
+      "description": "获取今日视图任务（F011）：今日创建 + 今日到期的任务，支持排序与分页",
+      "request_body": null,
+      "response": {
+        "200": {
+          "items": [
+            {
+              "id": "integer",
+              "title": "string",
+              "status": "string",
+              "priority": "string",
+              "due_date": "date | null",
+              "is_overdue": "boolean",
+              "tags": "array",
+              "category": "object"
+            }
+          ],
+          "total": "integer",
+          "page": "integer",
+          "page_size": "integer"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/tasks/views/week",
+      "description": "获取最近7天视图任务（F011）：未来7天内到期的任务",
+      "request_body": null,
+      "response": {
+        "200": {
+          "items": [
+            {
+              "id": "integer",
+              "title": "string",
+              "status": "string",
+              "priority": "string",
+              "due_date": "date",
+              "is_overdue": "boolean",
+              "tags": "array",
+              "category": "object"
+            }
+          ],
+          "total": "integer",
+          "page": "integer",
+          "page_size": "integer"
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/notifications/subscriptions",
+      "description": "获取当前用户的所有 Web Push 订阅设备列表（F009）",
+      "request_body": null,
+      "response": {
+        "200": {
+          "items": [
+            {
+              "id": "integer",
+              "user_agent": "string",
+              "created_at": "datetime"
+            }
+          ],
+          "total": "integer"
+        }
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/notifications/subscriptions",
+      "description": "注册浏览器 Web Push 订阅（F009）：前端获取用户授权并拿到 PushSubscription 对象后调用",
+      "request_body": {
+        "endpoint": "string, 必填，浏览器 Push 服务 URL",
+        "p256dh_key": "string, 必填，ECDH 公钥",
+        "auth_key": "string, 必填，认证密钥",
+        "user_agent": "string, 可选，浏览器标识"
+      },
+      "response": {
+        "201": {
+          "id": "integer",
+          "message": "推送订阅注册成功"
+        },
+        "409": {
+          "message": "该设备已订阅，订阅信息已更新"
+        }
+      }
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/notifications/subscriptions/{subscription_id}",
+      "description": "取消指定设备的 Web Push 订阅（F009）",
+      "request_body": null,
+      "response": {
+        "200": {
+          "message": "推送订阅已取消"
+        },
+        "404": {
+          "error": "订阅不存在"
+        }
+      }
+    }
+  ]
+}

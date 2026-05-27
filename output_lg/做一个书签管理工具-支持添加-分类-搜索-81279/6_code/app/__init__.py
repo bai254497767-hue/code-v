@@ -1,0 +1,1 @@
+"""Bookmark API application package."""

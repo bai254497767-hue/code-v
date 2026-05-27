@@ -1,0 +1,130 @@
+{
+  "language": "Python（后端）+ TypeScript（前端）",
+  "framework": "FastAPI（后端 API） + Next.js 14 / React（前端） + Tailwind CSS（UI样式） + PostgreSQL（主数据库） + Redis（缓存与消息队列） + Celery（异步任务调度）",
+  "architecture": "前后端分离的 RESTful 架构。前端 Next.js 部署为静态站点/SSR，通过 HTTPS 调用后端 FastAPI 服务；后端采用分层结构（Router → Service → Repository → DB），使用 JWT 进行无状态鉴权；异步提醒通知通过 Celery + Redis 队列驱动；数据持久化到 PostgreSQL，热数据及 Session 缓存到 Redis。",
+  "modules": [
+    {
+      "name": "用户认证模块（Auth Service）",
+      "type": "backend",
+      "responsibility": "处理用户注册、登录、JWT Token 签发与刷新、密码加密（bcrypt）、账户信息管理及偏好设置持久化",
+      "related_features": [
+        "F001",
+        "F013"
+      ]
+    },
+    {
+      "name": "任务核心模块（Task Service）",
+      "type": "backend",
+      "responsibility": "提供任务 CRUD 完整接口，管理任务状态（未完成/已完成）、优先级（高/中/低）、截止日期字段，支持批量操作，维护任务与用户的数据隔离",
+      "related_features": [
+        "F002",
+        "F003",
+        "F004",
+        "F005",
+        "F008"
+      ]
+    },
+    {
+      "name": "分类与标签模块（Category & Tag Service）",
+      "type": "backend",
+      "responsibility": "管理用户自定义分类的增删改查，维护任务与标签的多对多关联关系，提供标签聚合查询能力",
+      "related_features": [
+        "F006",
+        "F007"
+      ]
+    },
+    {
+      "name": "搜索与筛选模块（Search & Filter Service）",
+      "type": "backend",
+      "responsibility": "基于 PostgreSQL 全文索引实现关键词搜索，支持按优先级、分类、标签、截止日期、完成状态的复合筛选，提供多维排序（优先级、截止日期、创建时间）",
+      "related_features": [
+        "F010",
+        "F011"
+      ]
+    },
+    {
+      "name": "通知调度模块（Notification Service）",
+      "type": "backend",
+      "responsibility": "使用 Celery Beat 定时扫描临近截止任务，将提醒任务推送至 Redis 队列，通过 WebSocket（或邮件）向在线用户推送到期预警通知",
+      "related_features": [
+        "F009",
+        "F008"
+      ]
+    },
+    {
+      "name": "数据模型层（Database Schema）",
+      "type": "shared",
+      "responsibility": "定义 PostgreSQL 数据表结构（users、tasks、categories、tags、task_tags）及索引策略，使用 SQLAlchemy ORM + Alembic 管理数据库迁移",
+      "related_features": [
+        "F001",
+        "F002",
+        "F006",
+        "F007"
+      ]
+    },
+    {
+      "name": "认证与账户页面（Auth & Profile UI）",
+      "type": "frontend",
+      "responsibility": "实现注册页、登录页、账户设置页的表单交互、JWT Token 本地存储与自动刷新、退出登录逻辑",
+      "related_features": [
+        "F001",
+        "F013"
+      ]
+    },
+    {
+      "name": "任务管理页面（Task Management UI）",
+      "type": "frontend",
+      "responsibility": "实现任务列表展示、快速创建输入框、任务卡片（含优先级色标、截止日期预警角标、完成勾选）、编辑弹窗、删除确认、整体完成进度条可视化",
+      "related_features": [
+        "F002",
+        "F003",
+        "F004",
+        "F005",
+        "F008",
+        "F011"
+      ]
+    },
+    {
+      "name": "分类与标签管理 UI（Category & Tag UI）",
+      "type": "frontend",
+      "responsibility": "提供侧边栏分类导航、分类增删改入口、任务详情中的标签输入器（支持多标签输入/删除）、标签云展示",
+      "related_features": [
+        "F006",
+        "F007"
+      ]
+    },
+    {
+      "name": "搜索筛选组件（Search & Filter UI）",
+      "type": "frontend",
+      "responsibility": "实现顶部关键词搜索框（防抖请求）、筛选面板（优先级、分类、标签、日期范围、完成状态多选）、排序切换控件，筛选条件以 URL Query 参数持久化",
+      "related_features": [
+        "F010",
+        "F011"
+      ]
+    },
+    {
+      "name": "通知与提醒 UI（Notification UI）",
+      "type": "frontend",
+      "responsibility": "通过 WebSocket 接收后端推送，在右上角显示通知徽标与消息列表；对即将到期（≤24h）和已逾期任务在卡片上做红色/橙色视觉预警标注",
+      "related_features": [
+        "F009",
+        "F008"
+      ]
+    },
+    {
+      "name": "响应式布局系统（Responsive Layout）",
+      "type": "frontend",
+      "responsibility": "基于 Tailwind CSS 断点体系实现 PC 端双栏布局（侧边栏+主内容区）与移动端底部导航单栏布局自动切换，确保触控友好的交互尺寸",
+      "related_features": [
+        "F012"
+      ]
+    }
+  ],
+  "dev_phases": [
+    "第一阶段（Week 1-2）：项目基础搭建 —— 初始化 FastAPI + Next.js 项目骨架，配置 PostgreSQL + Redis + Docker Compose 本地环境，完成数据库 Schema 设计与 Alembic 迁移，实现用户注册/登录/JWT鉴权接口及前端认证页面（F001）",
+    "第二阶段（Week 3-4）：核心任务功能 —— 完成任务 CRUD、优先级、截止日期后端接口及任务管理主页面开发，实现完成状态追踪与进度可视化，联调前后端数据流（F002、F003、F004、F005、F008）",
+    "第三阶段（Week 5-6）：分类、标签与搜索 —— 实现分类与标签模块后端接口，完成侧边栏分类导航和标签组件，接入关键词搜索与多维筛选、排序能力（F006、F007、F010、F011）",
+    "第四阶段（Week 7）：通知提醒与账户设置 —— 接入 Celery Beat 定时任务与 WebSocket 通知推送，完成前端通知组件及账户设置页，实现逾期任务视觉预警（F009、F013）",
+    "第五阶段（Week 8）：响应式适配、测试与上线 —— 全面完成 PC/移动端响应式布局调优，编写核心接口单元测试与前端组件测试，性能压测与 SQL 查询优化，部署至生产环境（Nginx + Gunicorn + Vercel/CDN）（F012）"
+  ]
+}

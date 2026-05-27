@@ -1,0 +1,289 @@
+{
+  "pages": [
+    {
+      "name": "LoginPage",
+      "route": "/login",
+      "description": "用户登录页面，支持邮箱密码登录，提供注册与忘记密码入口",
+      "components": [
+        "LoginForm - 登录表单，含邮箱输入框、密码输入框（带显隐切换）",
+        "SubmitButton - 登录提交按钮，含加载状态",
+        "FormErrorBanner - 顶部错误提示横幅（登录失败/账户未激活提示）",
+        "ForgotPasswordLink - 忘记密码跳转链接",
+        "RegisterRedirectLink - 跳转注册页链接"
+      ],
+      "api_calls": [
+        "POST /api/v1/auth/login - 提交邮箱+密码，换取 JWT Token"
+      ]
+    },
+    {
+      "name": "RegisterPage",
+      "route": "/register",
+      "description": "用户注册页面，填写邮箱与密码完成账户创建，注册成功后提示查收验证邮件",
+      "components": [
+        "RegisterForm - 注册表单，含邮箱、密码、确认密码输入框",
+        "PasswordStrengthIndicator - 密码强度可视化指示条",
+        "SubmitButton - 注册提交按钮，含加载状态",
+        "FormErrorBanner - 字段校验与服务端错误提示",
+        "SuccessNotice - 注册成功后展示「验证邮件已发送」引导提示",
+        "LoginRedirectLink - 跳转登录页链接"
+      ],
+      "api_calls": [
+        "POST /api/v1/auth/register - 提交注册信息，触发验证邮件发送"
+      ]
+    },
+    {
+      "name": "EmailVerificationPage",
+      "route": "/verify-email",
+      "description": "邮箱验证落地页，用户点击邮件中链接后携带 token 访问此页，展示激活结果",
+      "components": [
+        "VerificationStatusCard - 激活结果卡片（成功/失败/token过期 三态展示）",
+        "ResendEmailButton - 重新发送验证邮件按钮（token 过期时显示）",
+        "LoginRedirectButton - 激活成功后跳转登录的按钮"
+      ],
+      "api_calls": [
+        "POST /api/v1/auth/verify-email - 携带 URL 中的 token 完成邮箱激活"
+      ]
+    },
+    {
+      "name": "ForgotPasswordPage",
+      "route": "/forgot-password",
+      "description": "忘记密码页，用户输入注册邮箱后触发密码重置邮件发送",
+      "components": [
+        "EmailInputForm - 邮箱输入表单",
+        "SubmitButton - 发送重置邮件按钮，含加载状态",
+        "SuccessNotice - 发送成功后展示「请查收邮件」引导提示",
+        "FormErrorBanner - 邮箱不存在等错误提示",
+        "BackToLoginLink - 返回登录页链接"
+      ],
+      "api_calls": [
+        "POST /api/v1/auth/forgot-password - 提交邮箱，触发密码重置邮件"
+      ]
+    },
+    {
+      "name": "ResetPasswordPage",
+      "route": "/reset-password",
+      "description": "密码重置落地页，用户通过邮件链接携带 token 进入，填写新密码完成重置",
+      "components": [
+        "ResetPasswordForm - 新密码与确认密码输入表单",
+        "PasswordStrengthIndicator - 新密码强度可视化指示条",
+        "SubmitButton - 确认重置按钮，含加载状态",
+        "TokenInvalidNotice - token 无效或过期时的错误引导卡片",
+        "SuccessNotice - 重置成功后展示「密码已更新」并倒计时跳转登录"
+      ],
+      "api_calls": [
+        "POST /api/v1/auth/reset-password - 提交 token + 新密码完成重置"
+      ]
+    },
+    {
+      "name": "DashboardPage",
+      "route": "/",
+      "description": "应用主仪表盘，展示今日任务完成进度概览、分类与标签导航入口、以及快速创建任务入口",
+      "components": [
+        "TodayProgressCard - 今日任务完成进度卡片，含环形进度图和已完成/总数统计",
+        "QuickAddTaskBar - 顶部快速创建任务输入框（一键录入，仅需标题）",
+        "TaskStatsSummary - 统计摘要：待完成数、今日到期数、已逾期数",
+        "UpcomingDeadlineList - 即将到期任务预警列表（最近3条，可点击跳转）",
+        "CategoryNavList - 分类列表导航面板（含各分类未完成任务数角标）",
+        "TagCloudPanel - 标签云面板，展示常用标签，点击跳转筛选",
+        "RecentTaskList - 最近更新的任务快捷列表（最多5条）",
+        "CreateTaskModal - 完整任务创建弹窗（从 QuickAddTaskBar 或入口按钮触发）"
+      ],
+      "api_calls": [
+        "GET /api/v1/tasks/stats/today - 获取今日完成进度数据",
+        "GET /api/v1/tasks/views/today - 获取今日任务列表（含到期预警）",
+        "GET /api/v1/categories - 获取分类列表及未完成任务数",
+        "GET /api/v1/tags - 获取标签列表用于标签云展示",
+        "GET /api/v1/tasks - 获取最近更新任务（按 updated_at 排序，limit=5）",
+        "POST /api/v1/tasks - 快速创建或完整创建任务"
+      ]
+    },
+    {
+      "name": "AllTasksPage",
+      "route": "/tasks",
+      "description": "全部任务列表页，支持多维搜索、筛选、排序与分页，提供列表/分组视图切换",
+      "components": [
+        "SearchBar - 关键词搜索输入框，含防抖处理",
+        "FilterPanel - 多维筛选面板：状态(pending/completed)、优先级(高/中/低)、分类、标签、截止日期范围",
+        "SortSelector - 排序方式下拉：创建时间、截止日期、优先级、更新时间",
+        "ViewModeToggle - 视图切换按钮组：列表视图 / 按优先级分组视图 / 按分类分组视图",
+        "TaskList - 任务列表容器，渲染 TaskCard 列表",
+        "TaskCard - 单条任务卡片：复选框(完成状态)、标题、优先级徽章、分类标签、截止日期（逾期红色预警）、标签列表、优先级快切按钮",
+        "PaginationBar - 分页控件",
+        "QuickAddTaskBar - 顶部快速创建任务输入框",
+        "CreateTaskModal - 完整任务创建弹窗",
+        "EditTaskModal - 任务编辑弹窗（点击任务标题触发）",
+        "DeleteConfirmDialog - 删除任务二次确认弹窗",
+        "EmptyState - 无任务时的空状态引导图"
+      ],
+      "api_calls": [
+        "GET /api/v1/tasks - 获取任务列表（传入 search/status/priority/category/tag/due_date 等筛选参数）",
+        "POST /api/v1/tasks - 创建新任务",
+        "GET /api/v1/tasks/{task_id} - 获取任务详情用于编辑弹窗回显",
+        "PUT /api/v1/tasks/{task_id} - 保存编辑后的任务信息",
+        "DELETE /api/v1/tasks/{task_id} - 永久删除任务",
+        "PATCH /api/v1/tasks/{task_id}/status - 切换任务完成/未完成状态",
+        "PATCH /api/v1/tasks/{task_id}/priority - 在列表中快速切换优先级",
+        "GET /api/v1/categories - 获取分类列表用于筛选面板下拉选项",
+        "GET /api/v1/tags - 获取标签列表用于筛选面板及标签输入自动补全"
+      ]
+    },
+    {
+      "name": "TodayViewPage",
+      "route": "/tasks/today",
+      "description": "今日视图页，专注展示今日创建和今日到期的任务，含今日进度追踪",
+      "components": [
+        "TodayProgressBar - 今日完成进度横幅（已完成数/总数 + 进度条）",
+        "SortSelector - 排序方式下拉：优先级、截止时间、创建时间",
+        "TaskList - 今日任务列表，含任务完成状态、优先级、截止时间展示",
+        "TaskCard - 单条任务卡片（复用，同 AllTasksPage）",
+        "OverdueSection - 已逾期任务分组区块（红色视觉区分）",
+        "DueTodaySection - 今日到期任务分组区块（橙色视觉区分）",
+        "CreatedTodaySection - 今日创建任务分组区块",
+        "QuickAddTaskBar - 快速创建任务（默认设置今日为截止日期）",
+        "EditTaskModal - 任务编辑弹窗",
+        "DeleteConfirmDialog - 删除任务确认弹窗",
+        "EmptyState - 今日无任务时的空状态展示"
+      ],
+      "api_calls": [
+        "GET /api/v1/tasks/stats/today - 获取今日进度数据",
+        "GET /api/v1/tasks/views/today - 获取今日视图任务列表（支持排序与分页）",
+        "POST /api/v1/tasks - 快速创建今日任务",
+        "PATCH /api/v1/tasks/{task_id}/status - 切换任务完成状态",
+        "PATCH /api/v1/tasks/{task_id}/priority - 快速切换优先级",
+        "PUT /api/v1/tasks/{task_id} - 编辑任务",
+        "DELETE /api/v1/tasks/{task_id} - 删除任务"
+      ]
+    },
+    {
+      "name": "WeekViewPage",
+      "route": "/tasks/week",
+      "description": "最近7天视图页，以日期为轴展示未来7天内到期的任务，帮助用户做周计划",
+      "components": [
+        "WeekCalendarStrip - 7日日历条，高亮每天任务数量角标，点击跳转到对应日期分组",
+        "DayGroupSection - 按日期分组的任务区块，每组显示日期标题和对应任务列表",
+        "TaskCard - 单条任务卡片（复用，同 AllTasksPage）",
+        "SortSelector - 组内排序：优先级、截止时间",
+        "QuickAddTaskBar - 快速创建任务（默认截止日期为当天）",
+        "EditTaskModal - 任务编辑弹窗",
+        "DeleteConfirmDialog - 删除任务确认弹窗",
+        "EmptyState - 本周无任务时的空状态展示"
+      ],
+      "api_calls": [
+        "GET /api/v1/tasks/views/week - 获取未来7天到期任务列表（支持排序与分页）",
+        "POST /api/v1/tasks - 创建任务",
+        "PATCH /api/v1/tasks/{task_id}/status - 切换完成状态",
+        "PATCH /api/v1/tasks/{task_id}/priority - 快速切换优先级",
+        "PUT /api/v1/tasks/{task_id} - 编辑任务",
+        "DELETE /api/v1/tasks/{task_id} - 删除任务"
+      ]
+    },
+    {
+      "name": "CategoryViewPage",
+      "route": "/categories/:category_id",
+      "description": "分类详情页，展示归属于该分类下的所有任务，支持分类重命名与删除操作",
+      "components": [
+        "CategoryHeader - 分类名称标题 + 未完成任务数量徽章 + 重命名/删除操作按钮",
+        "RenameCategoryModal - 分类重命名弹窗",
+        "DeleteCategoryConfirmDialog - 删除分类确认弹窗（提示：该分类任务将归入未分类）",
+        "FilterPanel - 轻量筛选面板：状态、优先级、标签",
+        "SortSelector - 排序方式下拉",
+        "TaskList - 该分类下的任务列表",
+        "TaskCard - 单条任务卡片（复用）",
+        "PaginationBar - 分页控件",
+        "QuickAddTaskBar - 快速创建任务（自动归属当前分类）",
+        "EditTaskModal - 任务编辑弹窗",
+        "DeleteConfirmDialog - 任务删除确认弹窗",
+        "EmptyState - 分类为空时的引导提示"
+      ],
+      "api_calls": [
+        "GET /api/v1/tasks - 获取指定分类的任务列表（传入 category_id 筛选参数）",
+        "PUT /api/v1/categories/{category_id} - 重命名当前分类",
+        "DELETE /api/v1/categories/{category_id} - 删除当前分类",
+        "POST /api/v1/tasks - 创建并归属当前分类的任务",
+        "PATCH /api/v1/tasks/{task_id}/status - 切换任务完成状态",
+        "PATCH /api/v1/tasks/{task_id}/priority - 快速切换优先级",
+        "PUT /api/v1/tasks/{task_id} - 编辑任务",
+        "DELETE /api/v1/tasks/{task_id} - 删除任务",
+        "GET /api/v1/tags - 获取标签列表用于筛选面板"
+      ]
+    },
+    {
+      "name": "TagViewPage",
+      "route": "/tags/:tag_id",
+      "description": "标签详情页，展示所有含该标签的任务，支持标签重命名与删除操作",
+      "components": [
+        "TagHeader - 标签名称（带 # 前缀）+ 关联任务数量 + 重命名/删除操作按钮",
+        "RenameTagModal - 标签重命名弹窗（提示：将级联更新所有关联任务）",
+        "DeleteTagConfirmDialog - 删除标签确认弹窗（提示：所有任务上的该标签将被移除）",
+        "FilterPanel - 轻量筛选面板：状态、优先级、分类",
+        "SortSelector - 排序方式下拉",
+        "TaskList - 含该标签的任务列表",
+        "TaskCard - 单条任务卡片（复用）",
+        "PaginationBar - 分页控件",
+        "EditTaskModal - 任务编辑弹窗",
+        "DeleteConfirmDialog - 任务删除确认弹窗",
+        "EmptyState - 无关联任务时的提示"
+      ],
+      "api_calls": [
+        "GET /api/v1/tasks - 获取含指定标签的任务列表（传入 tag_id 筛选参数）",
+        "PUT /api/v1/tags/{tag_id} - 重命名标签",
+        "DELETE /api/v1/tags/{tag_id} - 删除标签",
+        "PATCH /api/v1/tasks/{task_id}/status - 切换任务完成状态",
+        "PATCH /api/v1/tasks/{task_id}/priority - 快速切换优先级",
+        "PUT /api/v1/tasks/{task_id} - 编辑任务",
+        "DELETE /api/v1/tasks/{task_id} - 删除任务",
+        "GET /api/v1/categories - 获取分类列表用于筛选面板"
+      ]
+    },
+    {
+      "name": "SettingsPage",
+      "route": "/settings",
+      "description": "个人账户设置页，含多 Tab 分区：个人信息、修改密码、偏好设置、通知管理、账户安全",
+      "components": [
+        "SettingsTabs - 顶部/侧边 Tab 导航：个人信息 | 修改密码 | 偏好设置 | 通知管理 | 账户安全",
+        "ProfileSection - 个人信息 Tab：头像上传组件、昵称输入框、邮箱（只读）、保存按钮",
+        "PasswordSection - 修改密码 Tab：原密码输入框、新密码输入框、确认新密码输入框、密码强度指示条、保存按钮",
+        "PreferencesSection - 偏好设置 Tab：默认任务排序方式选择、默认视图模式选择、主题色选择（若支持）、语言/时区设置",
+        "NotificationsSection - 通知管理 Tab：Web Push 授权状态提示、开启通知权限按钮、已订阅设备列表（含取消订阅按钮）、提醒提前时间设置（如提前1天/3天）",
+        "DangerZoneSection - 账户安全 Tab：注销账户区块（红色警告说明 + 确认输入框 + 二次确认弹窗）",
+        "DeleteAccountConfirmDialog - 注销账户二次确认弹窗（要求用户输入邮箱或「DELETE」关键词确认）",
+        "SaveSuccessToast - 保存成功的 Toast 提示",
+        "FormErrorBanner - 保存失败错误提示"
+      ],
+      "api_calls": [
+        "GET /api/v1/users/me - 页面加载时获取当前用户信息回显",
+        "PUT /api/v1/users/me - 保存昵称与头像修改",
+        "PUT /api/v1/users/me/password - 提交原密码和新密码",
+        "GET /api/v1/users/me/preferences - 获取偏好设置回显",
+        "PUT /api/v1/users/me/preferences - 保存偏好设置",
+        "GET /api/v1/notifications/subscriptions - 获取已订阅的 Web Push 设备列表",
+        "POST /api/v1/notifications/subscriptions - 注册当前浏览器的 Web Push 订阅",
+        "DELETE /api/v1/notifications/subscriptions/{subscription_id} - 取消指定设备的 Push 订阅",
+        "DELETE /api/v1/users/me - 确认后注销账户",
+        "POST /api/v1/auth/logout - 注销账户前先退出当前会话"
+      ]
+    }
+  ],
+  "shared_components": [
+    "AppShell - 整体布局容器，包含 Sidebar + 顶部 Topbar + 主内容区，响应式折叠侧边栏",
+    "Sidebar - 左侧导航栏：Logo、主导航（仪表盘/今日/本周/全部任务）、分类列表（含各分类未完成数角标）、标签列表入口、底部用户头像与设置入口；移动端折叠为抽屉",
+    "Topbar - 顶部导航栏：移动端汉堡菜单按钮、当前页面标题、全局搜索入口、通知铃铛图标、用户头像下拉菜单（含退出登录）",
+    "TaskCard - 通用任务卡片：完成状态复选框、任务标题（已完成加删除线）、优先级徽章（高/中/低色系区分）、分类标签、截止日期（逾期红色/即将到期橙色预警）、标签列表、操作菜单（编辑/删除）",
+    "CreateTaskModal - 完整任务创建弹窗：标题输入、描述输入、优先级选择、分类选择下拉、标签多选输入（支持自动补全）、截止日期日历选择器、保存/取消按钮",
+    "EditTaskModal - 任务编辑弹窗：与 CreateTaskModal 结构相同，含数据回显，支持全量字段编辑",
+    "QuickAddTaskBar - 快速创建任务输入框：支持仅输入标题即可一键创建，Enter 提交，可展开为完整弹窗",
+    "FilterPanel - 多维筛选面板：状态筛选、优先级多选、分类多选、标签多选、截止日期范围选择、一键重置",
+    "SortSelector - 排序方式下拉选择器：排序字段 + 正序/倒序切换",
+    "PriorityBadge - 优先级徽章：高（红）/ 中（橙）/ 低（蓝）色系统一视觉标识",
+    "DeadlineLabel - 截止日期标签：正常（灰）/ 今日到期（橙）/ 已逾期（红）三态样式",
+    "TagPill - 标签胶囊组件：展示单个 # 标签，支持点击跳转",
+    "CategoryBadge - 分类标识组件：展示任务所属分类",
+    "ConfirmDialog - 通用二次确认弹窗：标题、描述说明、确认/取消按钮（危险操作按钮为红色）",
+    "EmptyState - 通用空状态组件：插画图、说明文案、可选引导操作按钮",
+    "LoadingSpinner - 全局/局部加载状态动画，支持全屏遮罩和内联两种模式",
+    "Toast - 全局消息通知：成功（绿）/ 错误（红）/ 警告（橙）/ 信息（蓝）四类，顶部右侧弹出并自动消失",
+    "AuthGuard - 路由鉴权守卫：未登录自动重定向 /login，Token 过期自动调用 refresh-token 静默续期",
+    "DatePicker - 日历日期选择器组件，复用于任务截止日期与筛选日期范围设置",
+    "TagMultiSelect - 标签多选输入组件：支持关键词自动补全（调用 GET /api/v1/tags）、新建标签、已选标签胶囊展示与删除"
+  ]
+}
