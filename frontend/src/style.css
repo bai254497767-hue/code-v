@@ -759,8 +759,16 @@ button, input, textarea, select {
   display: grid;
   grid-template-columns: 250px minmax(0, 1fr);
   gap: 16px;
+  min-height: 0;
+  overflow: hidden;
 }
 .role-tabs {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100%;
+  overflow-y: auto;
+  padding-right: 2px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -824,6 +832,10 @@ button, input, textarea, select {
 }
 .role-output-panel {
   min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  padding-right: 4px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -2531,6 +2543,12 @@ button, input, textarea, select {
   }
   .role-output-layout {
     grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+  .role-tabs,
+  .role-output-panel {
+    max-height: none;
+    overflow: visible;
   }
   .debug-layout {
     grid-template-columns: 1fr;
