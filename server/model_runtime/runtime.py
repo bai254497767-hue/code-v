@@ -282,6 +282,12 @@ def _snapshot_log_summary(snap) -> str:
     return f"next={next_nodes} tasks={len(tasks)} interrupts={len(pending)}"
 
 
+def _is_auto_resume_interrupt_payload(payload: dict | None) -> bool:
+    payload = payload or {}
+    interrupt_kind = payload.get("interrupt_type") or payload.get("type")
+    return payload.get("stage") in AUTO_RESUME_STAGES and interrupt_kind != "question"
+
+
 async def _publish_event(project_id: str, payload: dict) -> None:
     ctx = running.get(project_id)
     if not ctx:
@@ -370,6 +376,16 @@ STAGE_DEFS = [
 ]
 STAGE_KEYS = {stage: key for stage, _, key in STAGE_DEFS}
 STAGE_LABELS = {stage: label for stage, label, _ in STAGE_DEFS}
+AUTO_RESUME_STAGES = {
+    "ceo",
+    "market_research_v1",
+    "design_lead_v1",
+    "ceo_review_market",
+    "ceo_review_design",
+    "ceo_synthesis_review",
+    "market_research_v2",
+    "design_lead_v2",
+}
 
 
 def _now() -> float:
@@ -1672,15 +1688,6 @@ async def _handle_interrupts(
     ctx: dict,
 ) -> Optional[Command]:
     decision_queue = ctx["decision_queue"]
-    auto_resume_stages = {
-        "market_research_v1",
-        "design_lead_v1",
-        "ceo_review_market",
-        "ceo_review_design",
-        "ceo_synthesis_review",
-        "market_research_v2",
-        "design_lead_v2",
-    }
     resume_values = {}
     for intr in interrupts:
         payload = intr.value
@@ -1710,7 +1717,7 @@ async def _handle_interrupts(
             })
 
         stage = payload["stage"]
-        if stage in auto_resume_stages and payload.get("type") != "question":
+        if _is_auto_resume_interrupt_payload(payload):
             _patch_task_context(project_id, {
                 "project": {"status": "running", "current_stage": stage},
                 "stages": {
@@ -1723,6 +1730,7 @@ async def _handle_interrupts(
             })
             if interrupt_id:
                 resume_values[interrupt_id] = "continue"
+            ctx["pending_interrupts"] = []
             continue
 
         # 等待前端决策（超时 30 分钟）
@@ -1842,11 +1850,8 @@ async def _handle_interrupts(
             ctx["pending_interrupts"] = []
             resume_values[interrupt_id] = "continue"
 
-    last_stage = interrupts[-1].value["stage"] if interrupts else ""
-    if resume_values and len(interrupts) > 1:
-        return Command(resume=resume_values)
     if resume_values:
-        return Command(resume=next(iter(resume_values.values())))
+        return Command(resume=resume_values)
     return Command(resume="continue")
 
 

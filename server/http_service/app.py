@@ -277,10 +277,23 @@ async def project_events(project_id: str, request: Request):
             snap_state = (snap.values if snap else None) or {}
             pending_interrupts = rt._snapshot_interrupts(snap)
             pending_payloads = list(ctx.get("pending_interrupts") or [])
+            visible_pending_interrupts = [
+                intr for intr in pending_interrupts
+                if not rt._is_auto_resume_interrupt_payload(intr.value)
+            ]
+            visible_pending_payloads = [
+                payload for payload in pending_payloads
+                if not rt._is_auto_resume_interrupt_payload(payload)
+            ]
+            auto_pending_payloads = [
+                payload for payload in pending_payloads
+                if rt._is_auto_resume_interrupt_payload(payload)
+            ]
             print(
                 "[events] open "
                 f"project={project_id} was_running={was_running} "
-                f"{rt._snapshot_log_summary(snap)} runtime_pending={len(pending_payloads)}",
+                f"{rt._snapshot_log_summary(snap)} runtime_pending={len(pending_payloads)} "
+                f"visible_pending={len(visible_pending_interrupts) + len(visible_pending_payloads)}",
                 flush=True,
             )
             yield _sse_payload({
@@ -289,13 +302,13 @@ async def project_events(project_id: str, request: Request):
                 "state":        _serialize_state(snap_state),
                 "task_context": _build_task_context_from_state(project_id, snap_state) if snap_state else _load_task_context(project_id),
             })
-            if pending_interrupts or pending_payloads:
+            if visible_pending_interrupts or visible_pending_payloads:
                 print(
                     "[events] restore pending interrupts "
-                    f"project={project_id} snapshot_count={len(pending_interrupts)} runtime_count={len(pending_payloads)}",
+                    f"project={project_id} snapshot_count={len(visible_pending_interrupts)} runtime_count={len(visible_pending_payloads)}",
                     flush=True,
                 )
-                for intr in pending_interrupts:
+                for intr in visible_pending_interrupts:
                     payload = intr.value
                     event_type = "question_interrupt" if payload.get("type") == "question" else "interrupt"
                     print(
@@ -305,7 +318,7 @@ async def project_events(project_id: str, request: Request):
                         flush=True,
                     )
                     yield _sse_payload({**payload, "type": event_type, "interrupt_type": payload.get("type")})
-                for payload in pending_payloads:
+                for payload in visible_pending_payloads:
                     print(
                         "[events] emit runtime pending interrupt "
                         f"project={project_id} type={payload.get('type')} stage={payload.get('stage')} "
@@ -314,8 +327,15 @@ async def project_events(project_id: str, request: Request):
                     )
                     yield _sse_payload(payload)
             else:
+                if auto_pending_payloads and was_running:
+                    print(
+                        f"[events] auto-continue runtime pending outputs project={project_id} count={len(auto_pending_payloads)}",
+                        flush=True,
+                    )
+                    for _payload in auto_pending_payloads:
+                        await ctx["decision_queue"].put({"action": "continue", "feedback": ""})
                 next_nodes = list(getattr(snap, "next", ()) or ()) if snap else []
-                should_start = was_running or ctx.get("initial_state") is not None or bool(next_nodes)
+                should_start = was_running or ctx.get("initial_state") is not None or bool(next_nodes) or bool(pending_interrupts)
                 if should_start:
                     print(f"[events] start pipeline project={project_id} reason=no_pending", flush=True)
                     _start_pipeline_if_needed(project_id, ctx)
