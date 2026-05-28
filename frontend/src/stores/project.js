@@ -189,6 +189,12 @@ export const useProjectStore = defineStore('project', () => {
 
     eventSource.onmessage = (evt) => {
       const msg = JSON.parse(evt.data)
+      console.info('[code-v:sse]', {
+        type: msg.type,
+        stage: msg.stage,
+        hasQuestion: Boolean(msg.question),
+        options: (msg.options || msg.data?.options || []).length,
+      })
       handleMessage(msg, projectId)
     }
 
@@ -229,6 +235,14 @@ export const useProjectStore = defineStore('project', () => {
     }
 
     if (msg.type === 'interrupt' || msg.type === 'question_interrupt') {
+      console.info('[code-v:interrupt]', {
+        type: msg.type,
+        stage: msg.stage,
+        title: msg.title,
+        question: msg.question,
+        options: msg.options || msg.data?.options || [],
+        allowCustomInput: msg.allow_custom_input,
+      })
       wsStatus.value     = 'waiting'
       currentStage.value = msg.stage
       pendingInterrupt.value = msg
@@ -592,6 +606,13 @@ export const useProjectStore = defineStore('project', () => {
 
   async function sendDecision(action, feedback = '') {
     if (!currentId.value) return
+    console.info('[code-v:decision]', {
+      projectId: currentId.value,
+      action,
+      feedbackLength: (feedback || '').trim().length,
+      pendingStage: pendingInterrupt.value?.stage,
+      pendingType: pendingInterrupt.value?.type,
+    })
 
     // 把当前 waiting 卡片标为 done 或 retrying
     const waitingCard = messages.value.find(m => m.status === 'waiting')

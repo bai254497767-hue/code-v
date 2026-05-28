@@ -243,11 +243,43 @@ def _new_project_runtime(initial_state: Optional[dict], is_resume: bool) -> dict
         "cancel_event": threading.Event(),
         "active_stage": None,
         "forced_command": None,
+        "pending_interrupts": [],
     }
 
 
 def _sse_payload(payload: dict) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def _snapshot_interrupts(snap) -> list:
+    """Return pending LangGraph interrupts across snapshot shapes."""
+    if not snap:
+        return []
+
+    seen: set[int] = set()
+    pending = []
+
+    def add_many(items):
+        for item in list(items or []):
+            marker = id(item)
+            if marker in seen:
+                continue
+            seen.add(marker)
+            pending.append(item)
+
+    add_many(getattr(snap, "interrupts", ()) or ())
+    for task in list(getattr(snap, "tasks", ()) or ()):
+        add_many(getattr(task, "interrupts", ()) or ())
+    return pending
+
+
+def _snapshot_log_summary(snap) -> str:
+    if not snap:
+        return "snapshot=None"
+    pending = _snapshot_interrupts(snap)
+    next_nodes = list(getattr(snap, "next", ()) or ())
+    tasks = list(getattr(snap, "tasks", ()) or ())
+    return f"next={next_nodes} tasks={len(tasks)} interrupts={len(pending)}"
 
 
 async def _publish_event(project_id: str, payload: dict) -> None:
@@ -264,6 +296,26 @@ async def _publish_event(project_id: str, payload: dict) -> None:
 
     if payload.get("type") in ("complete", "error"):
         ctx["terminal_event"] = payload
+
+    event_type = payload.get("type")
+    if event_type in {
+        "init",
+        "interrupt",
+        "question_interrupt",
+        "running",
+        "complete",
+        "error",
+        "report_breakpoint_reached",
+        "dispatch_started",
+        "dispatch_decision",
+    }:
+        print(
+            "[sse] publish "
+            f"project={project_id} type={event_type} stage={payload.get('stage')} "
+            f"question={bool(payload.get('question'))} options={len(payload.get('options') or [])} "
+            f"message={(payload.get('message') or payload.get('title') or '')[:120]}",
+            flush=True,
+        )
 
     stale_queues = []
     for queue in list(ctx.get("event_queues") or []):
@@ -1534,7 +1586,8 @@ async def _run_pipeline(
 
         if current_input is None:
             snap = graph.get_state(config)
-            pending = list(getattr(snap, "interrupts", ()) or [])
+            pending = _snapshot_interrupts(snap)
+            print(f"[pipeline] resume project={project_id} {_snapshot_log_summary(snap)}", flush=True)
             if pending:
                 current_input = await _handle_interrupts(project_id, pending, event_sink, ctx)
                 if current_input is None:
@@ -1548,6 +1601,10 @@ async def _run_pipeline(
                 })
                 current_input = Command(goto="backend")
             else:
+                print(
+                    f"[pipeline] no pending interrupt found, using explicit resume project={project_id}",
+                    flush=True,
+                )
                 current_input = Command(resume="continue")
 
         while True:
@@ -1629,7 +1686,15 @@ async def _handle_interrupts(
         payload = intr.value
         interrupt_id = getattr(intr, "id", None)
         outbound_type = "question_interrupt" if payload.get("type") == "question" else "interrupt"
-        await event_sink.put({**payload, "type": outbound_type, "interrupt_type": payload.get("type")})
+        outbound_payload = {**payload, "type": outbound_type, "interrupt_type": payload.get("type")}
+        print(
+            "[interrupt] outbound "
+            f"project={project_id} id={interrupt_id} type={outbound_type} stage={payload.get('stage')} "
+            f"question={bool(payload.get('question'))} options={len(payload.get('options') or [])}",
+            flush=True,
+        )
+        ctx["pending_interrupts"] = [outbound_payload]
+        await event_sink.put(outbound_payload)
         if payload.get("stage") in {"market_research_v1", "market_research_v2", "design_lead_v1", "design_lead_v2"}:
             await event_sink.put({
                 "type": "report_version_created",
@@ -1669,11 +1734,55 @@ async def _handle_interrupts(
 
         action = decision.get("action", "continue")
         feedback = (decision.get("feedback") or "").strip()
+        print(
+            "[decision] received "
+            f"project={project_id} stage={stage} payload_type={payload.get('type')} "
+            f"action={action} feedback_len={len(feedback)} feedback={(feedback or '')[:80]}",
+            flush=True,
+        )
 
         if payload.get("type") == "question":
-            if action == "abort":
-                await event_sink.put({"type": "complete", "state": {}})
-                return None
+            while True:
+                if action == "abort":
+                    await event_sink.put({"type": "complete", "state": {}})
+                    return None
+                if feedback and feedback.lower() not in {"continue", "retry", "abort"}:
+                    break
+                await event_sink.put({
+                    **payload,
+                    "type": "question_interrupt",
+                    "interrupt_type": "question",
+                    "data": {
+                        **(payload.get("data") or {}),
+                        "reason": f"{(payload.get('data') or {}).get('reason') or ''}\n未收到有效选择，请选择一个选项或输入自定义答案。".strip(),
+                    },
+                })
+                ctx["pending_interrupts"] = [{
+                    **payload,
+                    "type": "question_interrupt",
+                    "interrupt_type": "question",
+                    "data": {
+                        **(payload.get("data") or {}),
+                        "reason": f"{(payload.get('data') or {}).get('reason') or ''}\n未收到有效选择，请选择一个选项或输入自定义答案。".strip(),
+                    },
+                }]
+                print(
+                    "[decision] ignored invalid question answer "
+                    f"project={project_id} stage={stage} action={action} feedback={feedback!r}",
+                    flush=True,
+                )
+                try:
+                    decision = await asyncio.wait_for(decision_queue.get(), timeout=1800)
+                except asyncio.TimeoutError:
+                    await event_sink.put({"type": "error", "message": "决策超时，流水线已暂停"})
+                    return None
+                action = decision.get("action", "continue")
+                feedback = (decision.get("feedback") or "").strip()
+                print(
+                    "[decision] received after invalid "
+                    f"project={project_id} stage={stage} action={action} feedback_len={len(feedback)}",
+                    flush=True,
+                )
             value = {
                 "answer": feedback,
                 "action": action,
@@ -1681,20 +1790,26 @@ async def _handle_interrupts(
                 "stage": stage,
             }
             if interrupt_id:
+                ctx["pending_interrupts"] = []
                 resume_values[interrupt_id] = value
                 continue
+            ctx["pending_interrupts"] = []
             return Command(resume=value)
 
         if action == "abort":
+            ctx["pending_interrupts"] = []
             await event_sink.put({"type": "complete", "state": {}})
             return None
         if action == "dispatch_queued":
+            ctx["pending_interrupts"] = []
             return await _dispatch_feedback(project_id, ctx, event_sink)
         if action == "chat_submit":
             if feedback:
                 _queue_user_feedback(project_id, ctx, feedback)
+            ctx["pending_interrupts"] = []
             return await _dispatch_feedback(project_id, ctx, event_sink)
         if action == "retry":
+            ctx["pending_interrupts"] = []
             _patch_task_context(project_id, {
                 "project": {"status": "running", "current_stage": stage},
                 "stages": {
@@ -1720,6 +1835,7 @@ async def _handle_interrupts(
             },
         })
         if interrupt_id:
+            ctx["pending_interrupts"] = []
             resume_values[interrupt_id] = "continue"
 
     last_stage = interrupts[-1].value["stage"] if interrupts else ""

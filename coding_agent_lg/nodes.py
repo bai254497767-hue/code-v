@@ -39,11 +39,33 @@ def _question_interrupt(stage: str, title: str, question: str, options: list[str
         "context_stage": stage,
         "resume_target": stage,
     }
-    answer = interrupt(payload)
-    if isinstance(answer, dict):
-        text = str(answer.get("answer") or answer.get("feedback") or answer.get("value") or "").strip()
-    else:
-        text = str(answer or "").strip()
+    print(
+        f"【用户澄清】发起选择题：stage={stage} question={question} options={len(options)}",
+        flush=True,
+    )
+    while True:
+        answer = interrupt(payload)
+        if isinstance(answer, dict):
+            text = str(answer.get("answer") or answer.get("feedback") or answer.get("value") or "").strip()
+        else:
+            text = str(answer or "").strip()
+
+        if text and text.lower() not in {"continue", "retry", "abort"}:
+            print(f"【用户澄清】收到答案：stage={stage} answer={text}", flush=True)
+            break
+
+        print(
+            f"【用户澄清】收到无效答案，重新提问：stage={stage} raw={answer!r}",
+            flush=True,
+        )
+        payload = {
+            **payload,
+            "data": {
+                **payload.get("data", {}),
+                "reason": f"{reason}\n未收到有效选择，请选择一个选项或输入自定义答案。".strip(),
+            },
+        }
+
     return {
         "stage": stage,
         "question": question,

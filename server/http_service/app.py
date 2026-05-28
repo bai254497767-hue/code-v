@@ -273,21 +273,54 @@ async def project_events(project_id: str, request: Request):
 
         try:
             was_running = ctx["task"] is not None and not ctx["task"].done()
-            _start_pipeline_if_needed(project_id, ctx)
-
             snap = await _get_graph_snapshot(project_id)
             snap_state = (snap.values if snap else None) or {}
+            pending_interrupts = rt._snapshot_interrupts(snap)
+            pending_payloads = list(ctx.get("pending_interrupts") or [])
+            print(
+                "[events] open "
+                f"project={project_id} was_running={was_running} "
+                f"{rt._snapshot_log_summary(snap)} runtime_pending={len(pending_payloads)}",
+                flush=True,
+            )
             yield _sse_payload({
                 "type":         "init",
                 "project_id":   project_id,
                 "state":        _serialize_state(snap_state),
                 "task_context": _build_task_context_from_state(project_id, snap_state) if snap_state else _load_task_context(project_id),
             })
-            if was_running and snap:
-                for intr in list(getattr(snap, "interrupts", ()) or []):
+            if pending_interrupts or pending_payloads:
+                print(
+                    "[events] restore pending interrupts "
+                    f"project={project_id} snapshot_count={len(pending_interrupts)} runtime_count={len(pending_payloads)}",
+                    flush=True,
+                )
+                for intr in pending_interrupts:
                     payload = intr.value
                     event_type = "question_interrupt" if payload.get("type") == "question" else "interrupt"
+                    print(
+                        "[events] emit restored interrupt "
+                        f"project={project_id} type={event_type} stage={payload.get('stage')} "
+                        f"question={bool(payload.get('question'))} options={len(payload.get('options') or [])}",
+                        flush=True,
+                    )
                     yield _sse_payload({**payload, "type": event_type, "interrupt_type": payload.get("type")})
+                for payload in pending_payloads:
+                    print(
+                        "[events] emit runtime pending interrupt "
+                        f"project={project_id} type={payload.get('type')} stage={payload.get('stage')} "
+                        f"question={bool(payload.get('question'))} options={len(payload.get('options') or [])}",
+                        flush=True,
+                    )
+                    yield _sse_payload(payload)
+            else:
+                next_nodes = list(getattr(snap, "next", ()) or ()) if snap else []
+                should_start = was_running or ctx.get("initial_state") is not None or bool(next_nodes)
+                if should_start:
+                    print(f"[events] start pipeline project={project_id} reason=no_pending", flush=True)
+                    _start_pipeline_if_needed(project_id, ctx)
+                else:
+                    print(f"[events] no pipeline start project={project_id} reason=no_pending_no_next", flush=True)
 
             terminal = ctx.get("terminal_event")
             if terminal:
@@ -332,6 +365,13 @@ async def submit_project_decision(project_id: str, body: dict):
     action = (body.get("action") or "continue").strip()
     if action not in {"continue", "retry", "abort", "chat_submit", "request_interrupt"}:
         raise HTTPException(status_code=400, detail=f"不支持的决策动作：{action}")
+
+    print(
+        "[decision-http] submit "
+        f"project={project_id} action={action} "
+        f"feedback_len={len((body.get('feedback') or body.get('message') or '').strip())}",
+        flush=True,
+    )
 
     if action == "chat_submit":
         text = (body.get("message") or body.get("feedback") or "").strip()
