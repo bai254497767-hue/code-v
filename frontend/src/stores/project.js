@@ -307,7 +307,9 @@ export const useProjectStore = defineStore('project', () => {
     if (msg.type === 'llm_progress') {
       wsStatus.value = 'running'
       currentStage.value = msg.stage || currentStage.value
-      _appendChat('progress', msg.message, { stage: msg.stage, event: msg.event, ts: msg.ts })
+      if (msg.event !== 'stage_output') {
+        _appendChat('progress', msg.message, { stage: msg.stage, event: msg.event, ts: msg.ts })
+      }
       return
     }
 
@@ -318,7 +320,19 @@ export const useProjectStore = defineStore('project', () => {
 
     if (msg.type === 'report_version_created') {
       if (msg.report && msg.stage) _setStageState(msg.stage, msg.report)
-      if (msg.message) _appendChat('progress', msg.message, { stage: msg.stage })
+      if (msg.report && msg.stage) {
+        _upsertStageMessage({
+          stage: msg.stage,
+          emoji: msg.emoji || 'DOC',
+          title: msg.title || '阶段报告',
+          data: msg.report,
+          status: 'done',
+        })
+      }
+      if (msg.message) _appendChat('progress', msg.message, {
+        id: `report-${_reportIdentity(msg.stage, msg.report)}`,
+        stage: msg.stage,
+      })
       return
     }
 
@@ -474,15 +488,42 @@ export const useProjectStore = defineStore('project', () => {
     if (!key) return
     if (['market_reports', 'design_reports', 'ceo_reviews'].includes(key)) {
       const list = Array.isArray(stateSnapshot.value[key]) ? stateSnapshot.value[key] : []
-      const exists = list.some(item =>
-        item?.created_at && data?.created_at
-          ? item.created_at === data.created_at
-          : item?.stage === data?.stage && item?.version === data?.version && item?.role === data?.role
-      )
-      stateSnapshot.value = { ...stateSnapshot.value, [key]: exists ? list : [...list, data] }
+      const identity = _reportIdentity(stage, data)
+      const index = list.findIndex(item => _reportIdentity(stage, item) === identity)
+      const next = index >= 0
+        ? list.map((item, itemIndex) => itemIndex === index ? { ...item, ...data } : item)
+        : [...list, data]
+      stateSnapshot.value = { ...stateSnapshot.value, [key]: next }
       return
     }
     stateSnapshot.value = { ...stateSnapshot.value, [key]: data }
+  }
+
+  function _upsertStageMessage({ stage, emoji, title, data, status = 'done' }) {
+    const identity = _reportIdentity(stage, data)
+    const index = messages.value.findIndex(message =>
+      message.stage === stage && _reportIdentity(stage, message.data) === identity
+    )
+    const nextMessage = {
+      id: index >= 0 ? messages.value[index].id : ++msgIdCounter,
+      stage,
+      emoji,
+      title,
+      data,
+      extra: {},
+      status,
+    }
+    if (index >= 0) {
+      messages.value.splice(index, 1, nextMessage)
+    } else {
+      messages.value.push(nextMessage)
+    }
+  }
+
+  function _reportIdentity(stage, data = {}) {
+    const version = Number(data?.version || String(data?.report_version || '').replace(/^v/i, '') || 0)
+    const role = data?.role || data?.stage || stage
+    return `${stage}:${role}:v${version || 'x'}`
   }
 
   function latestVersion(data, version) {
