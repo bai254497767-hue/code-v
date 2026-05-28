@@ -102,7 +102,7 @@
               </div>
             </div>
 
-            <div class="chat-status">
+            <div class="chat-status" :class="store.wsStatus">
               <span class="status-indicator" :class="store.wsStatus"></span>
               {{ wsStatusLabel }}
             </div>

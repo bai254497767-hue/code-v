@@ -16,6 +16,16 @@
   --accent-lavender-soft: #f2f2f2;
   --red: #111111;
   --red-soft: #f2f2f2;
+  --status-running: #2f9e44;
+  --status-running-soft: #eaf7ed;
+  --status-warning: #f59f00;
+  --status-warning-soft: #fff4d6;
+  --status-error: #e03131;
+  --status-error-soft: #fff0f0;
+  --status-success: #12b886;
+  --status-success-soft: #e6fcf5;
+  --status-idle: #868e96;
+  --status-idle-soft: #f1f3f5;
   --text: #111111;
   --text-muted: #666666;
   --border: #e5e5e5;
@@ -436,6 +446,34 @@ button, input, textarea, select {
   font-weight: 700;
   color: var(--text-muted);
   flex-shrink: 0;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+.chat-status.idle {
+  border-color: var(--status-idle);
+  background: var(--status-idle-soft);
+  color: var(--text-muted);
+}
+.chat-status.connecting,
+.chat-status.waiting,
+.chat-status.report_breakpoint {
+  border-color: var(--status-warning);
+  background: var(--status-warning-soft);
+  color: #9a6700;
+}
+.chat-status.running {
+  border-color: var(--status-running);
+  background: var(--status-running-soft);
+  color: var(--status-running);
+}
+.chat-status.done {
+  border-color: var(--status-success);
+  background: var(--status-success-soft);
+  color: #087f5b;
+}
+.chat-status.error {
+  border-color: var(--status-error);
+  background: var(--status-error-soft);
+  color: var(--status-error);
 }
 .status-indicator {
   width: 8px;
@@ -443,10 +481,25 @@ button, input, textarea, select {
   border-radius: 50%;
   background: var(--text-muted);
 }
-.status-indicator.running { background: var(--accent-orange); animation: pulse 1.4s infinite; }
-.status-indicator.waiting { background: var(--accent-orange); }
-.status-indicator.done { background: var(--primary); }
-.status-indicator.error { background: var(--red); }
+.status-indicator.idle { background: var(--status-idle); }
+.status-indicator.connecting,
+.status-indicator.waiting,
+.status-indicator.report_breakpoint {
+  background: var(--status-warning);
+}
+.status-indicator.running {
+  background: var(--status-running);
+  box-shadow: 0 0 0 4px rgba(47, 158, 68, 0.14);
+  animation: pulse 1.4s infinite;
+}
+.status-indicator.done {
+  background: var(--status-success);
+  box-shadow: 0 0 0 4px rgba(18, 184, 134, 0.14);
+}
+.status-indicator.error {
+  background: var(--status-error);
+  box-shadow: 0 0 0 4px rgba(224, 49, 49, 0.14);
+}
 
 .model-control {
   position: relative;

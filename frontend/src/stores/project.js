@@ -309,13 +309,16 @@ export const useProjectStore = defineStore('project', () => {
     }
 
     if (msg.type === 'report_breakpoint_reached') {
-      wsStatus.value = 'waiting'
+      wsStatus.value = 'report_breakpoint'
       _appendChat('system', msg.message || '第二轮报告已完成，已停在报告断点。')
       return
     }
 
     if (msg.type === 'complete') {
-      wsStatus.value     = 'done'
+      const isReportBreakpoint = Boolean(
+        msg.state?.report_breakpoint && msg.state?.stop_after_report_round_2 && !msg.state?.acceptance
+      )
+      wsStatus.value     = isReportBreakpoint ? 'report_breakpoint' : 'done'
       currentStage.value = null
       pendingInterrupt.value = null
       if (msg.state) stateSnapshot.value = msg.state
