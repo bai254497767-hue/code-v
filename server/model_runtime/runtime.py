@@ -1452,9 +1452,23 @@ def _make_progress_emitter(project_id: str, event_sink: ProjectEventSink, loop: 
                 loop.call_soon_threadsafe(asyncio.create_task, event_sink.put(msg))
             else:
                 asyncio.create_task(event_sink.put(msg))
+            if payload.get("event") == "stage_output":
+                output_msg = {
+                    "type": "report_version_created",
+                    "project_id": project_id,
+                    "stage": stage,
+                    "emoji": payload.get("emoji"),
+                    "title": payload.get("title"),
+                    "report": payload.get("data"),
+                    "message": text,
+                }
+                if loop:
+                    loop.call_soon_threadsafe(asyncio.create_task, event_sink.put(output_msg))
+                else:
+                    asyncio.create_task(event_sink.put(output_msg))
         except Exception:
             pass
-        if text and payload.get("event") in {"stage_started", "artifact_parsed", "file_ops_applied", "model_started", "model_completed"}:
+        if text and payload.get("event") in {"stage_started", "artifact_parsed", "file_ops_applied", "model_started", "model_completed", "stage_output"}:
             event = _new_chat_event("progress", text, stage=stage)
             _append_state_item(project_id, "chat_events", event)
 

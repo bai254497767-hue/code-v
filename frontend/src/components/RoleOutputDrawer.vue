@@ -37,12 +37,26 @@
             </div>
           </div>
 
+          <div v-if="selectedVersionsList.length > 1" class="version-tabs role-version-tabs">
+            <button
+              v-for="item in selectedVersionsList"
+              :key="`${selectedRole.stage}-${versionKey(item)}`"
+              type="button"
+              class="version-tab"
+              :class="{ active: selectedVersionKey === versionKey(item) }"
+              @click="selectVersion(selectedRole.stage, item)"
+            >
+              {{ versionLabel(item, selectedVersionsList) }}
+            </button>
+          </div>
+
           <component
             v-if="selectedRole.ready && selectedComponent"
             :is="selectedComponent"
             :data="selectedData"
             :extra="selectedExtra"
             :project-state="projectState"
+            :variant="selectedReportVariant"
           />
           <div v-else class="drawer-empty">
             这个角色还没有可查看的输出。
@@ -64,9 +78,9 @@ defineEmits(['close'])
 
 const roleDefs = [
   { stage: 'ceo', key: 'brief', icon: 'CEO', name: 'CEO' },
-  { stage: 'market', key: 'market_reports', icon: 'MKT', name: '市场调研人员' },
-  { stage: 'design', key: 'design_reports', icon: 'DSN', name: '设计负责人' },
-  { stage: 'ceo_reviews', key: 'ceo_reviews', icon: 'REV', name: 'CEO 复核' },
+  { stage: 'market', key: 'market_reports', icon: 'MKT', name: '市场调研人员', versions: true },
+  { stage: 'design', key: 'design_reports', icon: 'DSN', name: '设计负责人', versions: true },
+  { stage: 'ceo_reviews', key: 'ceo_reviews', icon: 'REV', name: 'CEO 复核', versions: true },
   { stage: 'ceo_synthesis', key: 'synthesis_report', icon: 'SYN', name: 'CEO 综合复核' },
   { stage: 'pm', key: 'features', icon: 'PM', name: '产品经理' },
   { stage: 'cto', key: 'tech_plan', icon: 'CTO', name: 'CTO' },
@@ -93,19 +107,28 @@ const stageComponents = {
 }
 
 const selectedStage = ref('ceo')
+const selectedVersions = ref({})
 
 const roles = computed(() => roleDefs.map(def => {
   const data = props.projectState?.[def.key]
   const status = props.taskContext?.stages?.[def.stage]?.status || 'pending'
   const summary = props.taskContext?.stages?.[def.stage]?.summary || summarize(def.stage, data)
   const ready = data !== null && data !== undefined && !(Array.isArray(data) && data.length === 0)
-  return { ...def, data, ready, status, summary }
+  const versions = def.versions && Array.isArray(data) ? sortedVersions(data) : []
+  return { ...def, data, versions, ready, status, summary }
 }))
 
 const selectedRole = computed(() =>
   roles.value.find(role => role.stage === selectedStage.value) || roles.value[0]
 )
 const selectedComponent = computed(() => stageComponents[selectedRole.value?.stage])
+const selectedVersionsList = computed(() => selectedRole.value?.versions || [])
+const selectedVersionKey = computed(() => selectedVersions.value[selectedRole.value?.stage] || '')
+const selectedReportVariant = computed(() =>
+  ['market', 'design', 'ceo_reviews', 'ceo_synthesis'].includes(selectedRole.value?.stage)
+    ? 'document'
+    : 'cards'
+)
 const selectedData = computed(() => {
   const role = selectedRole.value
   if (role?.stage === 'implementer' && Array.isArray(role.data)) {
@@ -113,8 +136,9 @@ const selectedData = computed(() => {
       files: role.data.map(file => file.path || file.description || String(file)),
     }
   }
-  if (['market', 'design', 'ceo_reviews'].includes(role?.stage) && Array.isArray(role.data)) {
-    return role.data[role.data.length - 1] || null
+  if (role?.versions?.length) {
+    const key = selectedVersions.value[role.stage]
+    return role.versions.find(item => versionKey(item) === key) || latestVersion(role.versions)
   }
   return role?.data
 })
@@ -128,6 +152,15 @@ const selectedExtra = computed(() => {
 watch(
   () => roles.value,
   (items) => {
+    const nextSelectedVersions = { ...selectedVersions.value }
+    for (const role of items) {
+      if (!role.versions?.length) continue
+      const currentKey = nextSelectedVersions[role.stage]
+      if (!currentKey || !role.versions.some(item => versionKey(item) === currentKey)) {
+        nextSelectedVersions[role.stage] = versionKey(latestVersion(role.versions))
+      }
+    }
+    selectedVersions.value = nextSelectedVersions
     if (!items.some(role => role.stage === selectedStage.value && role.ready)) {
       selectedStage.value = items.find(role => role.ready)?.stage || 'ceo'
     }
@@ -142,11 +175,45 @@ function roleStateLabel(status, ready) {
   return ready ? '已产出' : '未开始'
 }
 
+function sortedVersions(items) {
+  return [...(items || [])].sort((a, b) => {
+    const versionA = Number(a?.version || 0)
+    const versionB = Number(b?.version || 0)
+    if (versionA !== versionB) return versionA - versionB
+    return Number(a?.created_at || 0) - Number(b?.created_at || 0)
+  })
+}
+
+function latestVersion(items) {
+  return items?.[items.length - 1] || null
+}
+
+function versionKey(item) {
+  return `${item?.version || 'x'}-${item?.role || item?.stage || ''}-${item?.created_at || ''}`
+}
+
+function versionLabel(item, items = []) {
+  if (item?.version) {
+    const sameVersion = items.filter(entry => Number(entry?.version || 0) === Number(item.version))
+    if (sameVersion.length > 1) {
+      const runIndex = sameVersion.findIndex(entry => versionKey(entry) === versionKey(item)) + 1
+      return `v${item.version} · 第 ${runIndex} 次`
+    }
+    return `v${item.version}`
+  }
+  if (item?.role) return item.role
+  return '版本'
+}
+
+function selectVersion(stage, item) {
+  selectedVersions.value = { ...selectedVersions.value, [stage]: versionKey(item) }
+}
+
 function summarize(stage, data) {
   if (!data) return '等待产出'
   if (stage === 'ceo') return data.project_name || '项目立项完成'
-  if (stage === 'market') return `${Array.isArray(data) ? data.length : 0} 个市场调研版本`
-  if (stage === 'design') return `${Array.isArray(data) ? data.length : 0} 个设计报告版本`
+  if (stage === 'market') return summarizeReportVersions(data, '市场调研')
+  if (stage === 'design') return summarizeReportVersions(data, '设计报告')
   if (stage === 'ceo_reviews') return `${Array.isArray(data) ? data.length : 0} 条 CEO 复核`
   if (stage === 'ceo_synthesis') return data.summary || 'CEO 综合复核完成'
   if (stage === 'pm') return `已拆解 ${data.features?.length || 0} 个功能`
@@ -157,5 +224,16 @@ function summarize(stage, data) {
   if (stage === 'tester') return `通过 ${data.passed || 0}，失败 ${data.failed || 0}`
   if (stage === 'acceptance') return data.accepted || data.passed ? '验收通过' : '验收未通过'
   return '已产出'
+}
+
+function summarizeReportVersions(data, label) {
+  const items = Array.isArray(data) ? data : []
+  if (!items.length) return '等待产出'
+  const versions = [...new Set(items.map(item => Number(item?.version || 0)).filter(Boolean))]
+  if (versions.length <= 1) {
+    const version = versions[0] ? `v${versions[0]}` : '未标版本'
+    return `${version}，${items.length} 次${label}产出`
+  }
+  return `${versions.length} 个${label}版本，${items.length} 次产出`
 }
 </script>

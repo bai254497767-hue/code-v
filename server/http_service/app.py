@@ -337,8 +337,11 @@ async def project_events(project_id: str, request: Request):
                     for _payload in auto_pending_payloads:
                         await ctx["decision_queue"].put({"action": "continue", "feedback": ""})
                 next_nodes = list(getattr(snap, "next", ()) or ()) if snap else []
-                should_start = was_running or ctx.get("initial_state") is not None or bool(next_nodes) or bool(pending_interrupts)
-                if should_start:
+                active_task = ctx.get("task") is not None and not ctx.get("task").done()
+                should_start = ctx.get("initial_state") is not None or bool(next_nodes) or bool(pending_interrupts)
+                if active_task:
+                    print(f"[events] pipeline already active project={project_id}", flush=True)
+                elif should_start:
                     print(f"[events] start pipeline project={project_id} reason=no_pending", flush=True)
                     _start_pipeline_if_needed(project_id, ctx)
                 else:

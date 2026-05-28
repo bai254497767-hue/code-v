@@ -22,6 +22,11 @@ def _interrupt(stage: str, emoji: str, title: str, data: dict, extra: dict | Non
     return interrupt(payload)
 
 
+def _emit_stage_output(stage: str, emoji: str, title: str, data: dict):
+    """Publish non-blocking stage output without pausing LangGraph execution."""
+    emit_progress("stage_output", f"{title} 已生成", stage=stage, emoji=emoji, title=title, data=data)
+
+
 def _question_interrupt(stage: str, title: str, question: str, options: list[str], reason: str = "", allow_multiple: bool = False) -> dict:
     payload = {
         "type": "question",
@@ -209,7 +214,7 @@ def market_research_v1_node(state: PipelineState) -> dict:
     emit_progress("stage_started", "市场调研人员正在生成 v1 调研报告", stage="market_research_v1")
     report = agents.llm_market_research(state, version=1, feedback=_stage_feedback(state, "market_research_v1") or _stage_feedback(state, "market_research"), **_llm_options(state))
     record = _report_record(report, "market", 1)
-    _interrupt("market_research_v1", "MKT", "市场调研 — v1 报告", record)
+    _emit_stage_output("market_research_v1", "MKT", "市场调研 — v1 报告", record)
     return {"market_reports": [record], **_clear_feedback("market_research")}
 
 
@@ -218,7 +223,7 @@ def design_lead_v1_node(state: PipelineState) -> dict:
     emit_progress("stage_started", "设计负责人正在确定 v1 设计方向", stage="design_lead_v1")
     report = agents.llm_design_lead(state, version=1, feedback=_stage_feedback(state, "design_lead_v1") or _stage_feedback(state, "design_lead"), **_llm_options(state))
     record = _report_record(report, "design", 1)
-    _interrupt("design_lead_v1", "DSN", "设计负责人 — v1 报告", record)
+    _emit_stage_output("design_lead_v1", "DSN", "设计负责人 — v1 报告", record)
     return {"design_reports": [record], **_clear_feedback("design_lead")}
 
 
@@ -241,7 +246,7 @@ def ceo_review_market_node(state: PipelineState) -> dict:
         if answer_text:
             review["feedback"] = f"{review.get('feedback') or ''}\n用户选择/补充：{answer_text}".strip()
     record = _report_record(review, "ceo_review_market", 1)
-    _interrupt("ceo_review_market", "CEO", "CEO — 复核市场调研 v1", record)
+    _emit_stage_output("ceo_review_market", "CEO", "CEO — 复核市场调研 v1", record)
     return {"ceo_reviews": [record], "user_clarifications": clarifications}
 
 
@@ -264,7 +269,7 @@ def ceo_review_design_node(state: PipelineState) -> dict:
         if answer_text:
             review["feedback"] = f"{review.get('feedback') or ''}\n用户选择/补充：{answer_text}".strip()
     record = _report_record(review, "ceo_review_design", 1)
-    _interrupt("ceo_review_design", "CEO", "CEO — 复核设计负责人 v1", record)
+    _emit_stage_output("ceo_review_design", "CEO", "CEO — 复核设计负责人 v1", record)
     return {"ceo_reviews": [record], "user_clarifications": clarifications}
 
 
@@ -272,7 +277,7 @@ def ceo_synthesis_review_node(state: PipelineState) -> dict:
     print("  ⏳ CEO 正在综合第一轮市场与设计报告...")
     emit_progress("stage_started", "CEO 正在综合第一轮报告并准备第二轮", stage="ceo_synthesis_review")
     synthesis = agents.llm_ceo_synthesis(state, **_llm_options(state))
-    _interrupt("ceo_synthesis_review", "CEO", "CEO — 综合复核", synthesis)
+    _emit_stage_output("ceo_synthesis_review", "CEO", "CEO — 综合复核", synthesis)
     return {"synthesis_report": synthesis, "active_stage": "ceo_synthesis_review"}
 
 
@@ -285,7 +290,7 @@ def market_research_v2_node(state: PipelineState) -> dict:
     ).strip()
     report = agents.llm_market_research(state, version=2, feedback=review_feedback or _stage_feedback(state, "market_research_v2") or _stage_feedback(state, "market_research"), **_llm_options(state))
     record = _report_record(report, "market", 2)
-    _interrupt("market_research_v2", "MKT", "市场调研 — v2 报告", record)
+    _emit_stage_output("market_research_v2", "MKT", "市场调研 — v2 报告", record)
     return {"market_reports": [record], **_clear_feedback("market_research")}
 
 
@@ -298,7 +303,7 @@ def design_lead_v2_node(state: PipelineState) -> dict:
     ).strip()
     report = agents.llm_design_lead(state, version=2, feedback=review_feedback or _stage_feedback(state, "design_lead_v2") or _stage_feedback(state, "design_lead"), **_llm_options(state))
     record = _report_record(report, "design", 2)
-    _interrupt("design_lead_v2", "DSN", "设计负责人 — v2 报告", record)
+    _emit_stage_output("design_lead_v2", "DSN", "设计负责人 — v2 报告", record)
     return {"design_reports": [record], **_clear_feedback("design_lead")}
 
 

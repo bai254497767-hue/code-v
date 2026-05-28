@@ -52,8 +52,8 @@ const expanded = ref(new Set())
 
 const roleDefs = [
   { stage: 'ceo', key: 'brief', icon: 'CEO', name: 'CEO', summary: data => data?.project_name || '项目立项完成' },
-  { stage: 'market', key: 'market_reports', icon: 'MKT', name: '市场调研人员', versions: true, summary: data => `${data?.length || 0} 个版本` },
-  { stage: 'design', key: 'design_reports', icon: 'DSN', name: '设计负责人', versions: true, summary: data => `${data?.length || 0} 个版本` },
+  { stage: 'market', key: 'market_reports', icon: 'MKT', name: '市场调研人员', versions: true, summary: data => summarizeReportVersions(data, '市场调研') },
+  { stage: 'design', key: 'design_reports', icon: 'DSN', name: '设计负责人', versions: true, summary: data => summarizeReportVersions(data, '设计报告') },
   { stage: 'ceo_reviews', key: 'ceo_reviews', icon: 'REV', name: 'CEO 复核', versions: true, summary: data => `${data?.length || 0} 条复核` },
   { stage: 'ceo_synthesis', key: 'synthesis_report', icon: 'SYN', name: 'CEO 综合复核', summary: data => data?.summary || '综合复核完成' },
   { stage: 'pm', key: 'features', icon: 'PM', name: '产品经理', summary: data => `${data?.features?.length || 0} 个功能模块` },
@@ -101,5 +101,16 @@ function selectedRoleData(role) {
 
 function selectVersion(stage, item) {
   selectedVersions.value = { ...selectedVersions.value, [stage]: versionKey(item) }
+}
+
+function summarizeReportVersions(data, label) {
+  const items = Array.isArray(data) ? data : []
+  if (!items.length) return '等待产出'
+  const versions = [...new Set(items.map(item => Number(item?.version || 0)).filter(Boolean))]
+  if (versions.length <= 1) {
+    const version = versions[0] ? `v${versions[0]}` : '未标版本'
+    return `${version}，${items.length} 次${label}产出`
+  }
+  return `${versions.length} 个${label}版本，${items.length} 次产出`
 }
 </script>

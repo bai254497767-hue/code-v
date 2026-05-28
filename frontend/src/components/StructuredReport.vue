@@ -1,5 +1,5 @@
 <template>
-  <div class="structured-report" :class="{ compact }">
+  <div class="structured-report" :class="[{ compact }, `layout-${layout}`]">
     <section
       v-for="(entry, index) in entries"
       :key="entry.key"
@@ -31,6 +31,7 @@
             v-if="isObject(item)"
             :data="item"
             :compact="true"
+            :layout="layout"
           />
           <p v-else class="report-text">{{ formatPrimitive(item) }}</p>
         </article>
@@ -40,6 +41,7 @@
         v-else-if="isObject(entry.value)"
         :data="entry.value"
         :compact="true"
+        :layout="layout"
       />
     </section>
   </div>
@@ -54,6 +56,7 @@ const props = defineProps({
   data: { type: [Object, Array], default: () => ({}) },
   compact: { type: Boolean, default: false },
   exclude: { type: Array, default: () => [] },
+  layout: { type: String, default: 'cards' },
 })
 
 const labelMap = {
