@@ -1801,6 +1801,17 @@ async def _handle_interrupts(
                 "source": decision.get("source") or "custom",
                 "selected_options": decision.get("selected_options") or [],
             }
+            if stage == "ceo":
+                ctx["pending_interrupts"] = []
+                print(
+                    "[decision] route answered ceo question back to ceo node with persisted clarification "
+                    f"project={project_id} answer={feedback[:80]}",
+                    flush=True,
+                )
+                return Command(
+                    goto="ceo",
+                    update={"user_clarifications": [value]},
+                )
             if interrupt_id:
                 ctx["pending_interrupts"] = []
                 resume_values[interrupt_id] = value

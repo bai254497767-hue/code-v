@@ -57,17 +57,23 @@ def _question_interrupt(stage: str, title: str, question: str, options: list[str
             print(f"【用户澄清】收到答案：stage={stage} answer={text}", flush=True)
             break
 
-        print(
-            f"【用户澄清】收到无效答案，重新提问：stage={stage} raw={answer!r}",
-            flush=True,
-        )
-        payload = {
-            **payload,
-            "data": {
-                **payload.get("data", {}),
-                "reason": f"{reason}\n未收到有效选择，请选择一个选项或输入自定义答案。".strip(),
-            },
-        }
+        if str(answer or "").strip().lower() == "continue":
+            print(
+                f"【用户澄清】忽略自动继续信号，等待用户选择：stage={stage}",
+                flush=True,
+            )
+        else:
+            print(
+                f"【用户澄清】收到空答案，重新提问：stage={stage} raw={answer!r}",
+                flush=True,
+            )
+            payload = {
+                **payload,
+                "data": {
+                    **payload.get("data", {}),
+                    "reason": f"{reason}\n未收到有效选择，请选择一个选项或输入自定义答案。".strip(),
+                },
+            }
 
     return {
         "stage": stage,
