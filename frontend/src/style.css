@@ -1220,6 +1220,171 @@ button, input, textarea, select {
 .card-body { padding: 16px; }
 .stage-content { display: flex; flex-direction: column; gap: 12px; }
 
+.ceo-stage-modern,
+.report-stage-modern {
+  gap: 16px;
+}
+
+.ceo-hero-report,
+.report-hero {
+  padding: 18px;
+  border: 1px solid #bfe6c6;
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(223, 244, 216, 0.95), rgba(255, 244, 214, 0.72)),
+    var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.ceo-hero-kicker,
+.report-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  color: var(--primary-strong);
+  font-size: 12px;
+  font-weight: 900;
+}
+.report-hero-meta span {
+  padding: 2px 8px;
+  border: 1px solid rgba(47, 158, 68, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+}
+.ceo-hero-report h3,
+.report-hero h3 {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+.ceo-hero-report p,
+.report-hero p {
+  max-width: 78ch;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.ceo-goal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.ceo-goal-card {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.ceo-goal-card span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+.ceo-goal-card strong {
+  display: block;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.ceo-goal-card.mint { background: #e6fcf5; border-color: #b8f2df; }
+.ceo-goal-card.orange { background: #fff4d6; border-color: #ffe3a3; }
+.ceo-goal-card.sky { background: #e7f5ff; border-color: #c7e6ff; }
+
+.ceo-team-block,
+.report-section-block {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+.structured-report {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.structured-report.compact {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.structured-report.compact .report-section-block {
+  padding: 10px;
+  box-shadow: none;
+}
+.report-section-block.tone-0 { background: #f2fbef; border-color: #d8eecf; }
+.report-section-block.tone-1 { background: #fff9e8; border-color: #ffe8ad; }
+.report-section-block.tone-2 { background: #eef9ff; border-color: #cfeeff; }
+.report-section-block.tone-3 { background: #f4f0ff; border-color: #ded4ff; }
+.report-section-block.tone-4 { background: #effcf7; border-color: #c6f0df; }
+.report-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+.report-section-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--primary);
+  box-shadow: 0 0 0 4px rgba(47, 158, 68, 0.12);
+  flex-shrink: 0;
+}
+.report-section-head h4 {
+  min-width: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.35;
+}
+.report-text {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.report-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.report-tag {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 5px 9px;
+  border: 1px solid rgba(47, 158, 68, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--primary-strong);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.report-card-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+.report-mini-card {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(31, 42, 31, 0.08);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.74);
+}
+.report-json {
+  display: none;
+}
+
 .chat-events {
   display: flex;
   flex-direction: column;
@@ -2305,6 +2470,10 @@ button, input, textarea, select {
   }
   .info-row,
   .test-summary-bar {
+    grid-template-columns: 1fr;
+  }
+  .structured-report,
+  .ceo-goal-grid {
     grid-template-columns: 1fr;
   }
   .model-picker {
