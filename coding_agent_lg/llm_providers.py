@@ -28,6 +28,10 @@ DEFAULT_CODEX_PATH = Path("/Applications/Codex.app/Contents/Resources/codex")
 ProgressCallback = Callable[[dict], None]
 _PROGRESS_CALLBACK: ContextVar[ProgressCallback | None] = ContextVar("llm_progress_callback", default=None)
 _CANCEL_EVENT: ContextVar[threading.Event | None] = ContextVar("llm_cancel_event", default=None)
+IGNORED_RUNTIME_LOG_PATTERNS = (
+    "codex_core_skills::loader: ignoring interface.icon_small",
+    "codex_core_skills::loader: ignoring interface.icon_large",
+)
 
 
 class ModelCancelled(RuntimeError):
@@ -241,6 +245,10 @@ def _log(message: str) -> None:
         print(message, flush=True)
 
 
+def _is_ignored_runtime_log(line: str) -> bool:
+    return any(pattern in line for pattern in IGNORED_RUNTIME_LOG_PATTERNS)
+
+
 def _format_cmd(cmd: list[str]) -> str:
     return " ".join(cmd)
 
@@ -283,6 +291,8 @@ def _stream_process(
         for line in iter(stream.readline, ""):
             sink.append(line)
             cleaned = line.rstrip()
+            if _is_ignored_runtime_log(cleaned):
+                continue
             _log(f"  [{label}] {cleaned}")
             if cleaned:
                 emit_progress("model_output", _preview(cleaned, 240), stream=label)

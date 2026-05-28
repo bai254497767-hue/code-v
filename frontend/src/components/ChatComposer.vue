@@ -12,6 +12,16 @@
       <span class="decision-countdown" :class="{ paused: countdownPaused }">{{ countdownText }}</span>
     </div>
 
+    <div v-if="store.pendingInterrupt" class="confirmation-popover">
+      <div class="confirmation-popover-title">正在确认的内容</div>
+      <div class="confirmation-popover-body">
+        <StageCard
+          :msg="confirmationMsg"
+          :project-state="store.stateSnapshot"
+        />
+      </div>
+    </div>
+
     <div class="composer-row">
       <textarea
         v-model="draft"
@@ -24,7 +34,7 @@
       ></textarea>
       <div class="composer-actions">
         <button class="btn-continue" type="button" @click="submit">
-          {{ primaryText }}
+          {{ submitting ? '发送中...' : primaryText }}
         </button>
         <button class="btn-retry" type="button" @click="interrupt">
           打断交给 CEO
@@ -46,11 +56,13 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useProjectStore } from '../stores/project.js'
+import StageCard from './StageCard.vue'
 
 const store = useProjectStore()
 const AUTO_CONFIRM_SECONDS = 60
 const draft = ref('')
 const error = ref('')
+const submitting = ref(false)
 const secondsLeft = ref(AUTO_CONFIRM_SECONDS)
 const countdownPaused = ref(false)
 let timerId = null
@@ -64,6 +76,18 @@ const primaryText = computed(() => {
 const countdownText = computed(() => {
   if (countdownPaused.value) return '已暂停自动确认'
   return `${secondsLeft.value} 秒后自动确认`
+})
+const confirmationMsg = computed(() => {
+  const intr = store.pendingInterrupt || {}
+  return {
+    id: `confirm-${intr.stage || 'stage'}`,
+    stage: intr.stage,
+    emoji: intr.emoji,
+    title: intr.title,
+    data: intr.data,
+    extra: extractExtra(intr),
+    status: 'waiting',
+  }
 })
 
 watch(
@@ -108,9 +132,20 @@ function pauseCountdown() {
   }
 }
 
+function extractExtra(msg) {
+  const reserved = ['type', 'stage', 'emoji', 'title', 'data', 'task_context']
+  const extra = {}
+  for (const key of Object.keys(msg || {})) {
+    if (!reserved.includes(key)) extra[key] = msg[key]
+  }
+  return extra
+}
+
 async function submit() {
+  if (submitting.value) return
   error.value = ''
   const text = draft.value.trim()
+  submitting.value = true
   try {
     if (text) {
       await store.submitChat(text)
@@ -123,6 +158,8 @@ async function submit() {
     }
   } catch (e) {
     error.value = e.message || '发送失败'
+  } finally {
+    submitting.value = false
   }
 }
 

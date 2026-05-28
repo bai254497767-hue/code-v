@@ -10,101 +10,117 @@
     <template v-else>
       <!-- 顶部项目信息 -->
       <div class="chat-header">
-        <div class="chat-header-main">
-          <div class="chat-project-name">{{ store.currentProject?.name || store.currentId }}</div>
-        </div>
-        <div class="chat-header-actions">
-          <div class="top-tools">
-            <button type="button" class="top-tool-btn" @click="openDrawer('roles')">
-              角色输出
-            </button>
-            <button type="button" class="top-tool-btn" @click="openDrawer('progress')">
-              任务进度
-            </button>
+        <div class="chat-header-top">
+          <div class="chat-header-main">
+            <div class="chat-project-name">{{ store.currentProject?.name || store.currentId }}</div>
           </div>
+          <div class="chat-header-actions">
+            <div class="top-tools">
+              <button type="button" class="top-tool-btn" @click="openDrawer('roles')">
+                角色输出
+              </button>
+              <button type="button" class="top-tool-btn" @click="openDrawer('progress')">
+                任务进度
+              </button>
+            </div>
 
-          <div class="model-control">
-            <button type="button" class="model-pill" @click="openModelEditor">
-              <span class="model-pill-kicker">当前模型</span>
-              <span class="model-pill-name">{{ currentProviderName }}</span>
-              <span class="model-pill-version">{{ currentModelLabel }}</span>
-              <span class="model-pill-version">{{ currentEffortLabel }}</span>
-              <span class="model-pill-version">{{ currentSpeedLabel }}</span>
-              <span class="model-pill-action">修改</span>
-            </button>
+            <div class="model-control">
+              <button type="button" class="model-pill" @click="openModelEditor">
+                <span class="model-pill-kicker">当前模型</span>
+                <span class="model-pill-name">{{ currentProviderName }}</span>
+                <span class="model-pill-version">{{ currentModelLabel }}</span>
+                <span class="model-pill-version">{{ currentEffortLabel }}</span>
+                <span class="model-pill-version">{{ currentSpeedLabel }}</span>
+                <span class="model-pill-action">修改</span>
+              </button>
 
-            <div v-if="modelEditorOpen" class="model-editor-popover">
-              <label class="model-editor-field">
-                <span>模型提供方</span>
-                <select v-model="draftProvider" class="model-select">
-                  <option
-                    v-for="provider in providerOptions"
-                    :key="provider.id"
-                    :value="provider.id"
+              <div v-if="modelEditorOpen" class="model-editor-popover">
+                <label class="model-editor-field">
+                  <span>模型提供方</span>
+                  <select v-model="draftProvider" class="model-select">
+                    <option
+                      v-for="provider in providerOptions"
+                      :key="provider.id"
+                      :value="provider.id"
+                    >
+                      {{ provider.name }}
+                    </option>
+                  </select>
+                </label>
+                <label class="model-editor-field">
+                  <span>模型版本</span>
+                  <select
+                    v-model="draftModel"
+                    class="model-input"
                   >
-                    {{ provider.name }}
-                  </option>
-                </select>
-              </label>
-              <label class="model-editor-field">
-                <span>模型版本</span>
-                <select
-                  v-model="draftModel"
-                  class="model-input"
-                >
-                  <option
-                    v-for="option in draftProviderModelOptions"
-                    :key="option.value"
-                    :value="option.value"
+                    <option
+                      v-for="option in draftProviderModelOptions"
+                      :key="option.value"
+                      :value="option.value"
+                    >
+                      {{ option.label }}
+                    </option>
+                  </select>
+                </label>
+                <label class="model-editor-field">
+                  <span>智能</span>
+                  <select v-model="draftEffort" class="model-input">
+                    <option
+                      v-for="option in draftProviderEffortOptions"
+                      :key="option.value"
+                      :value="option.value"
+                    >
+                      {{ option.label }}
+                    </option>
+                  </select>
+                </label>
+                <label class="model-editor-field">
+                  <span>速度</span>
+                  <select v-model="draftSpeed" class="model-input">
+                    <option
+                      v-for="option in draftProviderSpeedOptions"
+                      :key="option.value"
+                      :value="option.value"
+                    >
+                      {{ option.label }}
+                    </option>
+                  </select>
+                </label>
+                <div class="model-editor-hint">保存后对后续阶段生效。</div>
+                <div v-if="modelSaveError" class="model-editor-error">{{ modelSaveError }}</div>
+                <div class="model-editor-actions">
+                  <button type="button" class="btn ghost small" @click="closeModelEditor">取消</button>
+                  <button
+                    type="button"
+                    class="btn primary small"
+                    :disabled="modelSaving"
+                    @click="saveModelConfig"
                   >
-                    {{ option.label }}
-                  </option>
-                </select>
-              </label>
-              <label class="model-editor-field">
-                <span>智能</span>
-                <select v-model="draftEffort" class="model-input">
-                  <option
-                    v-for="option in draftProviderEffortOptions"
-                    :key="option.value"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </option>
-                </select>
-              </label>
-              <label class="model-editor-field">
-                <span>速度</span>
-                <select v-model="draftSpeed" class="model-input">
-                  <option
-                    v-for="option in draftProviderSpeedOptions"
-                    :key="option.value"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </option>
-                </select>
-              </label>
-              <div class="model-editor-hint">保存后对后续阶段生效。</div>
-              <div v-if="modelSaveError" class="model-editor-error">{{ modelSaveError }}</div>
-              <div class="model-editor-actions">
-                <button type="button" class="btn ghost small" @click="closeModelEditor">取消</button>
-                <button
-                  type="button"
-                  class="btn primary small"
-                  :disabled="modelSaving"
-                  @click="saveModelConfig"
-                >
-                  {{ modelSaving ? '保存中...' : '保存' }}
-                </button>
+                    {{ modelSaving ? '保存中...' : '保存' }}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="chat-status">
-            <span class="status-indicator" :class="store.wsStatus"></span>
-            {{ wsStatusLabel }}
+            <div class="chat-status">
+              <span class="status-indicator" :class="store.wsStatus"></span>
+              {{ wsStatusLabel }}
+            </div>
           </div>
+        </div>
+        <div
+          v-if="projectCodePath"
+          class="chat-project-path"
+          :class="{ expanded: pathExpanded }"
+          :title="projectCodePath"
+          @click="toggleProjectPath"
+        >
+          <span class="path-label">代码路径</span>
+          <span class="path-value">{{ visibleProjectCodePath }}</span>
+          <span class="path-toggle">{{ pathExpanded ? '收起' : '展开' }}</span>
+          <button type="button" class="path-copy-btn" @click.stop="copyProjectPath">
+            {{ pathCopied ? '已复制' : '复制' }}
+          </button>
         </div>
       </div>
 
@@ -187,6 +203,8 @@ const draftSpeed = ref('')
 const modelSaving = ref(false)
 const modelSaveError = ref('')
 const activeDrawer = ref('')
+const pathCopied = ref(false)
+const pathExpanded = ref(false)
 
 const STATUS_LABELS = {
   idle: '待机', connecting: '连接中', running: '运行中',
@@ -244,6 +262,22 @@ const currentSpeed = computed(() => store.currentProject?.llm_speed || currentPr
 const currentModelLabel = computed(() => optionLabel(currentProvider.value?.model_options, currentModel.value) || currentModel.value || '默认模型')
 const currentEffortLabel = computed(() => `智能 ${optionLabel(currentProvider.value?.effort_options, currentEffort.value) || currentEffort.value}`)
 const currentSpeedLabel = computed(() => optionLabel(currentProvider.value?.speed_options, currentSpeed.value) || currentSpeed.value)
+const projectCodePath = computed(() =>
+  store.currentProject?.project_dir ||
+  store.taskContext?.project?.project_dir ||
+  store.stateSnapshot?.project_dir ||
+  ''
+)
+const compactProjectCodePath = computed(() => {
+  const path = projectCodePath.value
+  if (!path) return ''
+  const parts = path.split('/').filter(Boolean)
+  if (parts.length <= 2) return path
+  return parts.slice(-2).join('/')
+})
+const visibleProjectCodePath = computed(() =>
+  pathExpanded.value ? projectCodePath.value : compactProjectCodePath.value
+)
 const draftProviderInfo = computed(() =>
   providerOptions.value.find(p => p.id === draftProvider.value) || currentProvider.value
 )
@@ -297,6 +331,23 @@ function openDrawer(name) {
   activeDrawer.value = activeDrawer.value === name ? '' : name
 }
 
+function toggleProjectPath() {
+  pathExpanded.value = !pathExpanded.value
+}
+
+async function copyProjectPath() {
+  if (!projectCodePath.value) return
+  try {
+    await navigator.clipboard.writeText(projectCodePath.value)
+    pathCopied.value = true
+    setTimeout(() => {
+      pathCopied.value = false
+    }, 1600)
+  } catch (e) {
+    console.error('copyProjectPath', e)
+  }
+}
+
 async function saveModelConfig() {
   if (!store.currentId) return
   modelSaving.value = true
@@ -340,6 +391,7 @@ watch(
   () => {
     closeModelEditor()
     activeDrawer.value = ''
+    pathExpanded.value = false
   }
 )
 watch(

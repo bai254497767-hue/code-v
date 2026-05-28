@@ -342,6 +342,7 @@ export const useProjectStore = defineStore('project', () => {
       project.llm_model = context.project.llm_model || project.llm_model
       project.llm_effort = context.project.llm_effort || project.llm_effort
       project.llm_speed = context.project.llm_speed || project.llm_speed
+      project.project_dir = context.project.project_dir || project.project_dir
     }
   }
 
@@ -460,6 +461,12 @@ export const useProjectStore = defineStore('project', () => {
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.detail || data.error || '提交意见失败')
+    if (data.item) {
+      feedbackQueue.value = feedbackQueue.value.some(item => item.id === data.item.id)
+        ? feedbackQueue.value
+        : [...feedbackQueue.value, data.item]
+      if (data.item.text) _appendChat('user', data.item.text, { id: data.item.id, ts: data.item.ts })
+    }
     return data
   }
 

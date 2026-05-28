@@ -43,7 +43,25 @@
         </section>
 
         <section class="drawer-section">
-          <div class="drawer-section-title">PM 子任务</div>
+          <div class="drawer-section-title">当前模块（按顺序执行）</div>
+          <div v-if="currentSubtask" class="current-subtask">
+            <div class="subtask-head">
+              <span class="subtask-id">{{ currentSubtask.source_feature_id || currentSubtask.id }}</span>
+              <strong>{{ currentSubtask.title }}</strong>
+              <span class="subtask-status">{{ subtaskStatusLabel(currentSubtask.status) }}</span>
+            </div>
+            <p v-if="currentSubtask.description">{{ currentSubtask.description }}</p>
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: (currentSubtask.progress || 0) + '%' }"></div>
+            </div>
+          </div>
+          <div v-else class="drawer-empty">
+            当前没有正在执行的模块。
+          </div>
+        </section>
+
+        <section class="drawer-section">
+          <div class="drawer-section-title">模块队列</div>
           <div v-if="subtasks.length" class="subtask-list">
             <div
               v-for="task in subtasks"
@@ -63,7 +81,7 @@
             </div>
           </div>
           <div v-else class="drawer-empty">
-            产品经理完成拆解后，这里会显示子任务。
+            产品经理完成拆解后，这里会按顺序显示模块队列。
           </div>
         </section>
       </div>
@@ -87,7 +105,14 @@ const stages = computed(() => {
   const source = context.value.stages || {}
   return stageOrder.map(id => source[id]).filter(Boolean)
 })
-const subtasks = computed(() => context.value.subtasks || [])
+const allSubtasks = computed(() => context.value.subtasks || [])
+const currentSubtask = computed(() =>
+  allSubtasks.value.find(task => ['running', 'waiting'].includes(task.status)) || null
+)
+const subtasks = computed(() => {
+  const currentId = currentSubtask.value?.id
+  return allSubtasks.value.filter(task => task.id !== currentId)
+})
 
 function stageStatusLabel(status) {
   const labels = {

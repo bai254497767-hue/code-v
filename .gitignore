@@ -9,3 +9,4 @@ output_lg/
 
 coding_agent_lg/projects.db-shm
 coding_agent_lg/projects.db-wal
+/logs/

@@ -9,11 +9,13 @@ AI 软件工厂 — FastAPI + SSE 后端
 import sys
 import asyncio
 import json
+import logging
 import re
 import sqlite3
 import subprocess
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -27,13 +29,93 @@ from langgraph.types import Command
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT / "coding_agent_lg"))
 
-import agents
-from graph import build_graph
-from llm_providers import ModelCancelled, llm_runtime
-
 # ── 常量 ──────────────────────────────────────────────────────────────────────
 DB_PATH     = str(ROOT / "coding_agent_lg" / "projects.db")
 OUTPUT_BASE = ROOT / "output_lg"
+LOG_DIR = ROOT / "logs"
+BACKEND_LOG_PATH = LOG_DIR / "backend.log"
+
+
+class _TeeStream:
+    """Mirror stdout/stderr to the original stream and a persistent log file."""
+
+    def __init__(self, primary, secondary):
+        self.primary = primary
+        self.secondary = secondary
+        self.encoding = getattr(primary, "encoding", "utf-8")
+        self.errors = getattr(primary, "errors", "replace")
+        self._at_line_start = True
+
+    def _timestamped(self, text: str) -> str:
+        if not text:
+            return text
+
+        parts = []
+        for chunk in text.splitlines(keepends=True):
+            if self._at_line_start and chunk.strip():
+                stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                parts.append(f"[{stamp}] ")
+            parts.append(chunk)
+            self._at_line_start = chunk.endswith(("\n", "\r"))
+        return "".join(parts)
+
+    def write(self, text):
+        output = self._timestamped(str(text))
+        for stream in (self.primary, self.secondary):
+            try:
+                stream.write(output)
+            except Exception:
+                pass
+        return len(text)
+
+    def flush(self):
+        for stream in (self.primary, self.secondary):
+            try:
+                stream.flush()
+            except Exception:
+                pass
+
+    def isatty(self):
+        return bool(getattr(self.primary, "isatty", lambda: False)())
+
+    def fileno(self):
+        return self.primary.fileno()
+
+
+def _install_file_logging() -> None:
+    if getattr(sys, "_code_v_file_logging_installed", False):
+        return
+    try:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        log_file = BACKEND_LOG_PATH.open("a", encoding="utf-8", buffering=1)
+        sys.stdout = _TeeStream(sys.stdout, log_file)
+        sys.stderr = _TeeStream(sys.stderr, log_file)
+
+        file_handler = logging.FileHandler(BACKEND_LOG_PATH, encoding="utf-8")
+        file_handler.setFormatter(
+            logging.Formatter(
+                "[%(asctime)s] %(levelname)s:     %(message)s",
+                datefmt="%Y-%m-%d %H:%M:%S",
+            )
+        )
+        for logger_name in ("uvicorn.error", "uvicorn.access", "fastapi"):
+            logger = logging.getLogger(logger_name)
+            logger.addHandler(file_handler)
+            logger.setLevel(logging.INFO)
+
+        sys._code_v_file_logging_installed = True
+        sys._code_v_backend_log_file = log_file
+        sys._code_v_backend_log_handler = file_handler
+        print(f"后端日志文件：{BACKEND_LOG_PATH}", flush=True)
+    except Exception as exc:
+        print(f"[warn] 后端日志文件初始化失败：{exc}", flush=True)
+
+
+_install_file_logging()
+
+import agents
+from graph import build_graph
+from llm_providers import ModelCancelled, llm_runtime
 
 # ── 应用初始化 ────────────────────────────────────────────────────────────────
 app = FastAPI(title="AI 软件工厂")
@@ -270,6 +352,16 @@ def _normalize_subtasks(vals: dict) -> list[dict]:
     return normalized
 
 
+def _next_pending_module(vals: dict) -> str | None:
+    features = (vals.get("features") or {}).get("features") or []
+    all_modules = ["项目骨架和配置文件"] + [f.get("name") for f in features if f.get("name")]
+    done = set(vals.get("implemented_modules") or [])
+    for module in all_modules:
+        if module not in done:
+            return module
+    return None
+
+
 def _empty_stages() -> dict:
     return {
         stage: {
@@ -322,6 +414,7 @@ def _build_task_context_from_state(project_id: str, state: dict) -> dict:
             "llm_model": vals.get("llm_model"),
             "llm_effort": vals.get("llm_effort"),
             "llm_speed": vals.get("llm_speed"),
+            "project_dir": vals.get("project_dir"),
         },
         "stages": stages,
         "subtasks": _normalize_subtasks(vals),
@@ -333,6 +426,82 @@ def _build_task_context_from_state(project_id: str, state: dict) -> dict:
         },
         "sync": {"version": 0, "updated_at": now},
     }
+    _normalize_context_sequence(context, vals)
+    return context
+
+
+def _normalize_context_sequence(context: dict, vals: dict | None = None, prefer_state_active: bool = False) -> dict:
+    """Keep the UI truthful: one active stage and one active module at a time."""
+    vals = vals or {}
+    now = _now()
+    project = context.setdefault("project", {})
+    stages = context.setdefault("stages", _empty_stages())
+    existing_stage = project.get("current_stage")
+    if prefer_state_active:
+        active_stage = vals.get("active_stage") or _current_stage(vals) or existing_stage
+    else:
+        active_stage = existing_stage or vals.get("active_stage") or _current_stage(vals)
+    active_status = project.get("status") or ("done" if vals.get("acceptance") else "idle")
+
+    for stage, label, key in STAGE_DEFS:
+        data = vals.get(key)
+        if _stage_has_data(stage, vals):
+            stages[stage] = {
+                "id": stage,
+                "label": label,
+                "status": "done",
+                "summary": _stage_summary(stage, data),
+                "updated_at": stages.get(stage, {}).get("updated_at") or now,
+            }
+        else:
+            stages[stage] = {
+                "id": stage,
+                "label": label,
+                "status": "pending",
+                "summary": "等待开始",
+                "updated_at": stages.get(stage, {}).get("updated_at"),
+            }
+
+    if active_stage in stages and not vals.get("acceptance"):
+        previous = stages.get(active_stage, {})
+        next_status = "waiting" if active_status == "waiting" or previous.get("status") == "waiting" else "running"
+        stages[active_stage] = {
+            **previous,
+            "id": active_stage,
+            "label": STAGE_LABELS.get(active_stage, active_stage),
+            "status": next_status,
+            "summary": previous.get("summary") if next_status == "waiting" else previous.get("summary") or f"{STAGE_LABELS.get(active_stage, active_stage)} 正在处理",
+            "updated_at": previous.get("updated_at") or now,
+        }
+        project["current_stage"] = active_stage
+        project["status"] = active_status if active_status in {"waiting", "error", "done"} else "running"
+
+    subtasks = context.get("subtasks") or []
+    if subtasks:
+        running_module = None
+        if active_stage == "implementer":
+            running_module = next(
+                (
+                    item.get("module") or item.get("title")
+                    for item in subtasks
+                    if item.get("status") in {"running", "waiting"}
+                ),
+                None,
+            ) or _next_pending_module(vals)
+
+        for item in subtasks:
+            module = item.get("module") or item.get("title")
+            if item.get("status") == "done":
+                item["progress"] = 100
+                continue
+            if active_stage == "implementer" and running_module and module == running_module:
+                item["status"] = "waiting" if project.get("status") == "waiting" else "running"
+                item["stage"] = "implementer"
+                item["progress"] = max(item.get("progress") or 0, 50)
+            else:
+                item["status"] = "pending"
+                item["progress"] = 0
+
     return context
 
 
@@ -353,11 +522,7 @@ def _load_task_context(project_id: str) -> dict | None:
         context["sync"]["version"] = row[1]
         context["sync"]["updated_at"] = row[2]
         return context
-
-    vals = _state_values(project_id)
-    if not vals:
-        return None
-    return _save_task_context(project_id, _build_task_context_from_state(project_id, vals))
+    return None
 
 
 def _save_task_context(project_id: str, context: dict) -> dict:
@@ -407,6 +572,9 @@ def _set_context_subtask(context: dict, module: str | None, status: str, progres
     if not module:
         return
     for item in context.get("subtasks") or []:
+        if status in {"running", "waiting"} and item.get("status") != "done":
+            item["status"] = "pending"
+            item["progress"] = 0
         if item.get("module") == module or item.get("title") == module or item.get("source_feature_id") == module:
             item["status"] = status
             item["stage"] = "implementer"
@@ -437,11 +605,11 @@ def _recalculate_context_progress(context: dict) -> None:
 
 def _sync_task_context_for_event(project_id: str, payload: dict) -> dict | None:
     event_type = payload.get("type")
-    vals = _state_values(project_id)
-    context = _load_task_context(project_id) or _build_task_context_from_state(project_id, vals)
     tracked_progress_events = {"stage_started", "artifact_parsed", "file_ops_applied", "model_started", "model_completed"}
     if event_type == "llm_progress" and payload.get("event") not in tracked_progress_events:
-        return context
+        return _load_task_context(project_id)
+    vals = payload.get("state") or {}
+    context = _load_task_context(project_id) or _build_task_context_from_state(project_id, vals)
     now = _now()
     project = context.setdefault("project", {"id": project_id})
     stages = context.setdefault("stages", _empty_stages())
@@ -559,6 +727,7 @@ def _get_projects() -> list[dict]:
                 "llm_model":    vals.get("llm_model"),
                 "llm_effort":   vals.get("llm_effort"),
                 "llm_speed":    vals.get("llm_speed"),
+                "project_dir":  vals.get("project_dir"),
                 "status":      status,
                 "stage":       _current_stage(vals),
             })
@@ -771,6 +940,17 @@ async def _dispatch_feedback(project_id: str, ctx: dict, event_sink: ProjectEven
 
 # ── HTTP 接口 ─────────────────────────────────────────────────────────────────
 
+async def _get_graph_snapshot(project_id: str, timeout: float = 2.0):
+    config = {"configurable": {"thread_id": project_id}}
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(graph.get_state, config),
+            timeout=timeout,
+        )
+    except Exception as exc:
+        print(f"[warn] graph snapshot timeout for {project_id}: {exc}", flush=True)
+        return None
+
 @app.get("/api/projects")
 async def list_projects():
     return {"projects": _get_projects()}
@@ -781,6 +961,18 @@ async def list_llm_providers():
     return {
         "providers": agents.get_available_providers(),
         "default_provider": agents.get_default_provider(),
+    }
+
+
+@app.get("/api/logs/backend")
+async def get_backend_logs(tail: int = 300):
+    tail = max(1, min(int(tail or 300), 5000))
+    if not BACKEND_LOG_PATH.exists():
+        return {"path": str(BACKEND_LOG_PATH), "lines": []}
+    text = BACKEND_LOG_PATH.read_text(encoding="utf-8", errors="replace")
+    return {
+        "path": str(BACKEND_LOG_PATH),
+        "lines": text.splitlines()[-tail:],
     }
 
 
@@ -911,14 +1103,14 @@ async def update_project_llm(project_id: str, body: dict):
 
 @app.get("/api/projects/{project_id}")
 async def get_project(project_id: str):
-    config = {"configurable": {"thread_id": project_id}}
-    snap   = graph.get_state(config)
-    vals   = snap.values or {}
+    snap = await _get_graph_snapshot(project_id)
+    vals = (snap.values if snap else None) or {}
+    context = _build_task_context_from_state(project_id, vals) if vals else _load_task_context(project_id)
     return {
         "project_id": project_id,
         "status":     "running" if project_id in running else _current_stage(vals),
         "state":      {k: v for k, v in vals.items() if k != "code_files"},  # 不暴露代码内容
-        "task_context": _load_task_context(project_id) or _build_task_context_from_state(project_id, vals),
+        "task_context": context,
         "running":    project_id in running,
     }
 
@@ -955,13 +1147,17 @@ async def delete_project(project_id: str):
 
 # ── SSE + HTTP 决策接口 ───────────────────────────────────────────────────────
 
-def _ensure_runtime_for_existing_project(project_id: str) -> dict:
+async def _ensure_runtime_for_existing_project(project_id: str) -> dict:
     if project_id in running:
         return running[project_id]
 
-    config = {"configurable": {"thread_id": project_id}}
-    existing = graph.get_state(config)
-    if not existing.values:
+    context = _load_task_context(project_id)
+    if context is None:
+        snap = await _get_graph_snapshot(project_id)
+        if snap and snap.values:
+            context = _save_task_context(project_id, _build_task_context_from_state(project_id, snap.values))
+
+    if context is None:
         raise HTTPException(status_code=404, detail="项目不存在")
 
     running[project_id] = _new_project_runtime(initial_state=None, is_resume=True)
@@ -984,7 +1180,7 @@ async def project_events(project_id: str, request: Request):
     SSE 事件流：服务端单向推送流水线状态。
     前端决策不走长连接，而是通过 /decisions HTTP POST 提交。
     """
-    ctx = _ensure_runtime_for_existing_project(project_id)
+    ctx = await _ensure_runtime_for_existing_project(project_id)
 
     async def event_stream():
         queue: asyncio.Queue = asyncio.Queue()
@@ -994,16 +1190,15 @@ async def project_events(project_id: str, request: Request):
             was_running = ctx["task"] is not None and not ctx["task"].done()
             _start_pipeline_if_needed(project_id, ctx)
 
-            config = {"configurable": {"thread_id": project_id}}
-            snap = graph.get_state(config)
-            snap_state = snap.values or {}
+            snap = await _get_graph_snapshot(project_id)
+            snap_state = (snap.values if snap else None) or {}
             yield _sse_payload({
                 "type":         "init",
                 "project_id":   project_id,
                 "state":        _serialize_state(snap_state),
-                "task_context": _load_task_context(project_id) or _build_task_context_from_state(project_id, snap_state),
+                "task_context": _build_task_context_from_state(project_id, snap_state) if snap_state else _load_task_context(project_id),
             })
-            if was_running:
+            if was_running and snap:
                 for intr in list(getattr(snap, "interrupts", ()) or []):
                     yield _sse_payload({"type": "interrupt", **intr.value})
 
@@ -1044,7 +1239,7 @@ async def project_events(project_id: str, request: Request):
 
 @app.post("/api/projects/{project_id}/decisions")
 async def submit_project_decision(project_id: str, body: dict):
-    ctx = _ensure_runtime_for_existing_project(project_id)
+    ctx = await _ensure_runtime_for_existing_project(project_id)
     _start_pipeline_if_needed(project_id, ctx)
 
     action = (body.get("action") or "continue").strip()
