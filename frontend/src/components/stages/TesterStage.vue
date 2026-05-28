@@ -25,7 +25,7 @@
         class="case-row"
         :class="c.status"
       >
-        <span class="case-icon">{{ c.status === 'pass' ? '✅' : '❌' }}</span>
+        <span class="case-icon">{{ c.status === 'pass' ? '✓' : '×' }}</span>
         <span class="case-id">{{ c.feature_id }}</span>
         <span class="case-name">{{ c.feature_name }}</span>
         <span class="case-detail">{{ c.detail }}</span>

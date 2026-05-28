@@ -58,12 +58,22 @@ const showModal = ref(false)
 const openMenuId = ref(null)
 
 const STAGE_LABELS = {
-  start: '待开始', ceo: '立项中', pm: '拆解中', cto: '技术规划',
+  start: '待开始', ceo: '立项中',
+  market_research_v1: '市场v1',
+  design_lead_v1: '设计v1',
+  ceo_review_market: '复核市场',
+  ceo_review_design: '复核设计',
+  ceo_synthesis_review: '综合复核',
+  market_research_v2: '市场v2',
+  design_lead_v2: '设计v2',
+  report_breakpoint: '报告断点',
+  pm: '拆解中', cto: '技术规划',
   backend: '接口设计', frontend: '页面设计', implementer: '编码中',
   tester: '测试中', acceptance: '验收', done: '已完成',
 }
 const STATUS_LABELS = {
   new: '新建', planning: '规划中', designing: '设计中',
+  researching: '调研中', report_breakpoint: '报告断点',
   coding: '编码中', testing: '测试中', running: '运行中', done: '已完成',
 }
 

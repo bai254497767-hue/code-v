@@ -79,6 +79,14 @@
         </div>
         <div v-if="folderError" class="folder-error">{{ folderError }}</div>
 
+        <label class="option-row">
+          <input type="checkbox" v-model="stopAfterReportRound2" />
+          <span>
+            <strong>第二轮报告后暂停</strong>
+            <small>市场调研 v2 和设计负责人 v2 完成后先停住，不自动进入开发链路。</small>
+          </span>
+        </label>
+
         <label class="field-label">产品需求描述</label>
         <textarea
           v-model="requirement"
@@ -98,7 +106,7 @@
           @click="submit"
         >
           <span v-if="loading" class="spinner"></span>
-          {{ loading ? '创建中...' : '🚀 开始构建' }}
+          {{ loading ? '创建中...' : '开始构建' }}
         </button>
       </div>
     </div>
@@ -120,6 +128,7 @@ const selectedProvider = ref('codex')
 const modelOverride = ref('')
 const effortOverride = ref('')
 const speedOverride = ref('')
+const stopAfterReportRound2 = ref(true)
 
 const fallbackProviders = [
   {
@@ -206,6 +215,7 @@ async function submit() {
       effort: effortOverride.value || null,
       speed: speedOverride.value || null,
       projectDir: projectDir.value,
+      stopAfterReportRound2: stopAfterReportRound2.value,
     })
     emit('created', id)
   } catch (e) {

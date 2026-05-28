@@ -3,7 +3,7 @@
     <!-- 左侧项目列表 -->
     <aside class="sidebar">
       <div class="sidebar-header">
-        <span class="logo">🏭</span>
+        <span class="logo">AI</span>
         <span class="logo-text">AI 软件工厂</span>
       </div>
       <ProjectList />

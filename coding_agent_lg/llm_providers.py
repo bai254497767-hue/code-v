@@ -192,13 +192,13 @@ def _speed_instruction(speed: str | None) -> str:
 PROVIDERS = {
     "codex": ProviderInfo(
         id="codex",
-        name="Codex 套餐模型",
+        name="Codex",
         description="通过 Codex CLI 使用当前 ChatGPT/Codex 登录态，不需要 API Key。",
         default_model=_codex_default_model(),
     ),
     "claude_cli": ProviderInfo(
         id="claude_cli",
-        name="Claude 套餐 CLI",
+        name="Claude",
         description="通过 claude -p 使用本机 Claude CLI 登录态。",
         default_model=_claude_default_model(),
     ),

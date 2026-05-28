@@ -12,7 +12,26 @@
       <span class="decision-countdown" :class="{ paused: countdownPaused }">{{ countdownText }}</span>
     </div>
 
-    <div v-if="store.pendingInterrupt" class="confirmation-popover">
+    <div v-if="isQuestionInterrupt" class="question-popover">
+      <div class="question-title">{{ store.pendingInterrupt.question }}</div>
+      <div v-if="store.pendingInterrupt.data?.reason" class="question-reason">
+        {{ store.pendingInterrupt.data.reason }}
+      </div>
+      <div class="question-options">
+        <button
+          v-for="option in questionOptions"
+          :key="option"
+          type="button"
+          class="question-option"
+          @click="answerQuestion(option)"
+        >
+          {{ option }}
+        </button>
+      </div>
+      <div class="question-custom-hint">也可以在下方输入自定义答案后发送。</div>
+    </div>
+
+    <div v-else-if="store.pendingInterrupt" class="confirmation-popover">
       <div class="confirmation-popover-title">正在确认的内容</div>
       <div class="confirmation-popover-body">
         <StageCard
@@ -33,7 +52,7 @@
         @keydown.ctrl.enter.prevent="submit"
       ></textarea>
       <div class="composer-actions">
-        <button class="btn-continue" type="button" @click="submit">
+        <button class="btn-continue" type="button" :disabled="isQuestionInterrupt && !hasDraft" @click="submit">
           {{ submitting ? '发送中...' : primaryText }}
         </button>
         <button class="btn-retry" type="button" @click="interrupt">
@@ -68,7 +87,14 @@ const countdownPaused = ref(false)
 let timerId = null
 
 const hasDraft = computed(() => draft.value.trim().length > 0)
+const isQuestionInterrupt = computed(() =>
+  Boolean(store.pendingInterrupt?.allow_custom_input && store.pendingInterrupt?.question)
+)
+const questionOptions = computed(() =>
+  (store.pendingInterrupt?.options || store.pendingInterrupt?.data?.options || []).slice(0, 6)
+)
 const primaryText = computed(() => {
+  if (isQuestionInterrupt.value) return hasDraft.value ? '提交自定义答案' : '选择或输入答案'
   if (hasDraft.value) return '发送给 CEO'
   if (store.pendingInterrupt) return '确认继续'
   return '发送'
@@ -106,7 +132,7 @@ function resetTimer() {
   stopTimer()
   secondsLeft.value = AUTO_CONFIRM_SECONDS
   countdownPaused.value = false
-  if (store.pendingInterrupt && !hasDraft.value && store.feedbackQueue.length === 0) {
+  if (store.pendingInterrupt && !isQuestionInterrupt.value && !hasDraft.value && store.feedbackQueue.length === 0) {
     timerId = window.setInterval(() => {
       if (countdownPaused.value) return
       secondsLeft.value -= 1
@@ -148,6 +174,12 @@ async function submit() {
   submitting.value = true
   try {
     if (text) {
+      if (isQuestionInterrupt.value) {
+        await store.sendDecision('continue', text)
+        draft.value = ''
+        resetTimer()
+        return
+      }
       await store.submitChat(text)
       draft.value = ''
       resetTimer()
@@ -158,6 +190,21 @@ async function submit() {
     }
   } catch (e) {
     error.value = e.message || '发送失败'
+  } finally {
+    submitting.value = false
+  }
+}
+
+async function answerQuestion(option) {
+  if (submitting.value) return
+  submitting.value = true
+  error.value = ''
+  try {
+    await store.sendDecision('continue', option)
+    draft.value = ''
+    resetTimer()
+  } catch (e) {
+    error.value = e.message || '提交答案失败'
   } finally {
     submitting.value = false
   }

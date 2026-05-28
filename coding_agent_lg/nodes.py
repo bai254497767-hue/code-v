@@ -9,6 +9,7 @@ from state import PipelineState
 import agents
 import file_manager
 from llm_providers import emit_progress
+import time
 
 
 # ── 工具 ──────────────────────────────────────────────────────────────────────
@@ -19,6 +20,38 @@ def _interrupt(stage: str, emoji: str, title: str, data: dict, extra: dict | Non
     if extra:
         payload.update(extra)
     return interrupt(payload)
+
+
+def _question_interrupt(stage: str, title: str, question: str, options: list[str], reason: str = "") -> dict:
+    payload = {
+        "type": "question",
+        "stage": stage,
+        "emoji": "?",
+        "title": title,
+        "data": {
+            "question": question,
+            "options": options[:],
+            "reason": reason,
+        },
+        "question": question,
+        "options": options[:],
+        "allow_custom_input": True,
+        "context_stage": stage,
+        "resume_target": stage,
+    }
+    answer = interrupt(payload)
+    if isinstance(answer, dict):
+        text = str(answer.get("answer") or answer.get("feedback") or answer.get("value") or "").strip()
+    else:
+        text = str(answer or "").strip()
+    return {
+        "stage": stage,
+        "question": question,
+        "answer": text,
+        "options": options[:],
+        "reason": reason,
+        "created_at": time.time(),
+    }
 
 
 def _llm_options(state: PipelineState) -> dict:
@@ -39,6 +72,24 @@ def _stage_feedback(state: PipelineState, stage: str) -> str:
 
 def _clear_feedback(stage: str) -> dict:
     return {"stage_feedback": {stage: ""}}
+
+
+def _report_record(report: dict, role: str, version: int) -> dict:
+    return {
+        **(report or {}),
+        "role": role,
+        "version": version,
+        "created_at": time.time(),
+    }
+
+
+def _latest(reports: list[dict] | None, version: int | None = None) -> dict:
+    items = list(reports or [])
+    if version is not None:
+        matches = [item for item in items if int(item.get("version") or 0) == version]
+        if matches:
+            return matches[-1]
+    return items[-1] if items else {}
 
 
 def _feature_subtasks(features: dict) -> list[dict]:
@@ -81,9 +132,150 @@ def _update_subtask_status(state: PipelineState, module: str, status: str, progr
 def ceo_node(state: PipelineState) -> dict:
     print("  ⏳ CEO 正在分析需求...")
     emit_progress("stage_started", "CEO 正在分析项目需求", stage="ceo")
-    brief = agents.llm_ceo(state["requirement"], feedback=_stage_feedback(state, "ceo"), **_llm_options(state))
+    clarifications = list(state.get("user_clarifications") or [])
+    clarification_update = []
+    if not clarifications:
+        check = agents.llm_ceo_clarification(state["requirement"], **_llm_options(state))
+        if check.get("needs_clarification"):
+            item = _question_interrupt(
+                "ceo",
+                "CEO — 需求澄清",
+                check.get("question") or "请补充关键选择。",
+                check.get("options") or ["优先快速上线", "优先完整体验", "优先降低复杂度"],
+                check.get("reason") or "",
+            )
+            clarification_update = [item]
+            clarifications = clarification_update
+    enriched_requirement = state["requirement"]
+    if clarifications:
+        answers = "\n".join(f"- {item.get('question')}：{item.get('answer')}" for item in clarifications if item.get("answer"))
+        if answers:
+            enriched_requirement = f"{enriched_requirement}\n\n用户澄清：\n{answers}"
+    brief = agents.llm_ceo(enriched_requirement, feedback=_stage_feedback(state, "ceo"), **_llm_options(state))
     _interrupt("ceo", "🏢", "CEO — 项目立项", brief)
-    return {"brief": brief, "active_stage": "ceo", **_clear_feedback("ceo")}
+    return {
+        "brief": brief,
+        "ceo_report": brief,
+        "user_clarifications": clarification_update,
+        "active_stage": "ceo",
+        **_clear_feedback("ceo"),
+    }
+
+
+# ── 前置报告：市场 / 设计 / CEO 复核 ────────────────────────────────────────
+
+def market_research_v1_node(state: PipelineState) -> dict:
+    print("  ⏳ 市场调研人员正在生成 v1 报告...")
+    emit_progress("stage_started", "市场调研人员正在生成 v1 调研报告", stage="market_research_v1")
+    report = agents.llm_market_research(state, version=1, feedback=_stage_feedback(state, "market_research_v1") or _stage_feedback(state, "market_research"), **_llm_options(state))
+    record = _report_record(report, "market", 1)
+    _interrupt("market_research_v1", "MKT", "市场调研 — v1 报告", record)
+    return {"market_reports": [record], **_clear_feedback("market_research")}
+
+
+def design_lead_v1_node(state: PipelineState) -> dict:
+    print("  ⏳ 设计负责人正在生成 v1 报告...")
+    emit_progress("stage_started", "设计负责人正在确定 v1 设计方向", stage="design_lead_v1")
+    report = agents.llm_design_lead(state, version=1, feedback=_stage_feedback(state, "design_lead_v1") or _stage_feedback(state, "design_lead"), **_llm_options(state))
+    record = _report_record(report, "design", 1)
+    _interrupt("design_lead_v1", "DSN", "设计负责人 — v1 报告", record)
+    return {"design_reports": [record], **_clear_feedback("design_lead")}
+
+
+def ceo_review_market_node(state: PipelineState) -> dict:
+    print("  ⏳ CEO 正在复核市场调研 v1...")
+    report = _latest(state.get("market_reports"), 1)
+    emit_progress("stage_started", "CEO 正在复核市场调研 v1", stage="ceo_review_market")
+    review = agents.llm_ceo_review_report(state, report_kind="market", report=report, version=1, **_llm_options(state))
+    clarifications = []
+    if review.get("question") and len(review.get("options") or []) >= 3:
+        clarifications = [_question_interrupt(
+            "ceo_review_market",
+            "CEO — 市场调研复核澄清",
+            review["question"],
+            review["options"],
+            review.get("reason") or "",
+        )]
+        answer_text = clarifications[0].get("answer") or ""
+        if answer_text:
+            review["feedback"] = f"{review.get('feedback') or ''}\n用户选择/补充：{answer_text}".strip()
+    record = _report_record(review, "ceo_review_market", 1)
+    _interrupt("ceo_review_market", "CEO", "CEO — 复核市场调研 v1", record)
+    return {"ceo_reviews": [record], "user_clarifications": clarifications}
+
+
+def ceo_review_design_node(state: PipelineState) -> dict:
+    print("  ⏳ CEO 正在复核设计负责人 v1...")
+    report = _latest(state.get("design_reports"), 1)
+    emit_progress("stage_started", "CEO 正在复核设计负责人 v1", stage="ceo_review_design")
+    review = agents.llm_ceo_review_report(state, report_kind="design", report=report, version=1, **_llm_options(state))
+    clarifications = []
+    if review.get("question") and len(review.get("options") or []) >= 3:
+        clarifications = [_question_interrupt(
+            "ceo_review_design",
+            "CEO — 设计方向复核澄清",
+            review["question"],
+            review["options"],
+            review.get("reason") or "",
+        )]
+        answer_text = clarifications[0].get("answer") or ""
+        if answer_text:
+            review["feedback"] = f"{review.get('feedback') or ''}\n用户选择/补充：{answer_text}".strip()
+    record = _report_record(review, "ceo_review_design", 1)
+    _interrupt("ceo_review_design", "CEO", "CEO — 复核设计负责人 v1", record)
+    return {"ceo_reviews": [record], "user_clarifications": clarifications}
+
+
+def ceo_synthesis_review_node(state: PipelineState) -> dict:
+    print("  ⏳ CEO 正在综合第一轮市场与设计报告...")
+    emit_progress("stage_started", "CEO 正在综合第一轮报告并准备第二轮", stage="ceo_synthesis_review")
+    synthesis = agents.llm_ceo_synthesis(state, **_llm_options(state))
+    _interrupt("ceo_synthesis_review", "CEO", "CEO — 综合复核", synthesis)
+    return {"synthesis_report": synthesis, "active_stage": "ceo_synthesis_review"}
+
+
+def market_research_v2_node(state: PipelineState) -> dict:
+    print("  ⏳ 市场调研人员正在生成 v2 报告...")
+    emit_progress("stage_started", "市场调研人员正在生成 v2 调研报告", stage="market_research_v2")
+    review_feedback = "\n".join(
+        str(item.get("feedback") or "") for item in (state.get("ceo_reviews") or [])
+        if item.get("role") == "ceo_review_market"
+    ).strip()
+    report = agents.llm_market_research(state, version=2, feedback=review_feedback or _stage_feedback(state, "market_research_v2") or _stage_feedback(state, "market_research"), **_llm_options(state))
+    record = _report_record(report, "market", 2)
+    _interrupt("market_research_v2", "MKT", "市场调研 — v2 报告", record)
+    return {"market_reports": [record], **_clear_feedback("market_research")}
+
+
+def design_lead_v2_node(state: PipelineState) -> dict:
+    print("  ⏳ 设计负责人正在生成 v2 报告...")
+    emit_progress("stage_started", "设计负责人正在生成 v2 设计方向", stage="design_lead_v2")
+    review_feedback = "\n".join(
+        str(item.get("feedback") or "") for item in (state.get("ceo_reviews") or [])
+        if item.get("role") == "ceo_review_design"
+    ).strip()
+    report = agents.llm_design_lead(state, version=2, feedback=review_feedback or _stage_feedback(state, "design_lead_v2") or _stage_feedback(state, "design_lead"), **_llm_options(state))
+    record = _report_record(report, "design", 2)
+    _interrupt("design_lead_v2", "DSN", "设计负责人 — v2 报告", record)
+    return {"design_reports": [record], **_clear_feedback("design_lead")}
+
+
+def report_breakpoint_node(state: PipelineState) -> dict:
+    print("  ⏸ 第二轮报告已完成，正在判断是否进入报告断点...")
+    emit_progress("stage_started", "第二轮报告已完成，正在判断是否继续开发链路", stage="report_breakpoint")
+    market = _latest(state.get("market_reports"), 2)
+    design = _latest(state.get("design_reports"), 2)
+    data = {
+        "title": "第二轮报告完成",
+        "summary": "市场调研 v2 和设计负责人 v2 已生成。",
+        "market_report_version": market.get("version"),
+        "design_report_version": design.get("version"),
+        "stop_after_report_round_2": bool(state.get("stop_after_report_round_2")),
+        "next_step": "暂停在报告断点" if state.get("stop_after_report_round_2") else "继续进入产品经理功能拆解",
+    }
+    if state.get("stop_after_report_round_2"):
+        _interrupt("report_breakpoint", "STOP", "报告断点 — 第二轮报告完成", data)
+    return {"report_breakpoint": data, "active_stage": "report_breakpoint"}
 
 
 # ── 产品经理 ──────────────────────────────────────────────────────────────────
@@ -157,8 +349,14 @@ def implementer_node(state: PipelineState) -> dict:
     """
     features = state["features"]["features"]
     all_modules = ["项目骨架和配置文件"] + [f["name"] for f in features]
+    debug_target = (state.get("debug_rerun_module") or "").strip()
     done = set(state.get("implemented_modules") or [])
     remaining = [m for m in all_modules if m not in done]
+
+    if debug_target:
+        if debug_target not in all_modules:
+            raise RuntimeError(f"调试重跑模块不存在：{debug_target}")
+        remaining = [debug_target]
 
     if not remaining:
         return {}
@@ -187,6 +385,7 @@ def implementer_node(state: PipelineState) -> dict:
         "implemented_modules": [target],
         "subtasks": _update_subtask_status(state, target, "done", 100),
         "active_stage": "implementer",
+        "debug_rerun_module": None,
         **_clear_feedback("implementer"),
     }
 

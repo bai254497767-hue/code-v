@@ -97,7 +97,24 @@ const props = defineProps({
 })
 defineEmits(['close'])
 
-const stageOrder = ['ceo', 'pm', 'cto', 'backend', 'frontend', 'implementer', 'tester', 'acceptance']
+const stageOrder = [
+  'ceo',
+  'market_research_v1',
+  'design_lead_v1',
+  'ceo_review_market',
+  'ceo_review_design',
+  'ceo_synthesis_review',
+  'market_research_v2',
+  'design_lead_v2',
+  'report_breakpoint',
+  'pm',
+  'cto',
+  'backend',
+  'frontend',
+  'implementer',
+  'tester',
+  'acceptance',
+]
 
 const context = computed(() => props.taskContext || {})
 const progress = computed(() => context.value.progress || { percent: 0, current_label: '等待开始' })

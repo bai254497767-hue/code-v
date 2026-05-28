@@ -24,7 +24,7 @@
     </div>
 
     <div v-if="extra.remaining === 0" class="all-done">
-      ✅ 所有模块实现完毕
+      ✓ 所有模块实现完毕
     </div>
     <div v-else-if="extra.remaining > 0" class="remaining-hint">
       还剩 {{ extra.remaining }} 个模块

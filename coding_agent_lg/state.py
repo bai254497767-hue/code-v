@@ -10,6 +10,13 @@ import operator
 from typing import TypedDict, Optional, Annotated
 
 
+def merge_replaceable_list(left: Optional[list], right) -> list:
+    """Append by default, but allow explicit replacement for debug reruns."""
+    if isinstance(right, dict) and right.get("__replace__") is not None:
+        return list(right.get("__replace__") or [])
+    return list(left or []) + list(right or [])
+
+
 def merge_stage_feedback(left: Optional[dict], right: Optional[dict]) -> dict:
     """Merge feedback maps when resume/update writes land in the same graph step."""
     merged = {}
@@ -33,9 +40,19 @@ class PipelineState(TypedDict):
     interrupt_requested: Optional[bool]      # 用户请求在安全点交给 CEO 重新调度
     active_stage: Optional[str]              # 当前正在运行的阶段
     subtasks: Optional[list[dict]]           # PM 功能拆解映射出的当前任务上下文子任务
+    stop_after_report_round_2: Optional[bool]  # 第二轮报告完成后是否暂停后续开发链路
 
     # ── 项目输出目录（实时写磁盘用）──────────────────────────
     project_dir: Optional[str]            # 绝对路径，指向 output_lg/{id}/6_code/
+
+    # ── 前置报告编排 ────────────────────────────────────────
+    ceo_report: Optional[dict]
+    market_reports: Annotated[list[dict], operator.add]
+    design_reports: Annotated[list[dict], operator.add]
+    ceo_reviews: Annotated[list[dict], operator.add]
+    user_clarifications: Annotated[list[dict], operator.add]
+    synthesis_report: Optional[dict]
+    report_breakpoint: Optional[dict]
 
     # ── 各阶段产出 ────────────────────────────────────────
     brief:     Optional[dict]
@@ -49,7 +66,8 @@ class PipelineState(TypedDict):
     code_files: Optional[list[dict]]
 
     # ── 循环控制：已实现模块列表（驱动 implementer 循环）────────
-    implemented_modules: Annotated[list[str], operator.add]
+    implemented_modules: Annotated[list[str], merge_replaceable_list]
+    debug_rerun_module: Optional[str]
 
     # ── 测试与验收 ────────────────────────────────────────
     test_report: Optional[dict]

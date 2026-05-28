@@ -3,8 +3,8 @@
     <div class="fix-header">
       <span class="fix-attempt">第 {{ extra.attempt || 1 }} 次修复</span>
       <div class="test-result">
-        <span class="pass-count">✅ {{ data.passed }} 通过</span>
-        <span class="fail-count">❌ {{ data.failed }} 失败</span>
+        <span class="pass-count">✓ {{ data.passed }} 通过</span>
+        <span class="fail-count">× {{ data.failed }} 失败</span>
       </div>
     </div>
 

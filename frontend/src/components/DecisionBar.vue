@@ -2,7 +2,7 @@
   <div class="decision-bar">
     <div class="decision-info">
       <div class="decision-title">
-        <span class="decision-emoji">{{ interrupt.emoji }}</span>
+        <span class="decision-emoji">{{ stageMark }}</span>
         <span class="decision-label">{{ interrupt.title }} — 请确认或输入修改意见</span>
         <span class="decision-countdown" :class="{ paused: countdownPaused }">
           {{ countdownText }}
@@ -44,6 +44,18 @@ let timerId = null
 
 const hasFeedback = computed(() => feedback.value.trim().length > 0)
 const primaryButtonText = computed(() => hasFeedback.value ? '按意见重生成' : '确认继续')
+const STAGE_MARKS = {
+  ceo: 'CEO',
+  pm: 'PM',
+  cto: 'CTO',
+  backend: 'API',
+  frontend: 'UI',
+  implementer: 'CODE',
+  fixer: 'FIX',
+  tester: 'QA',
+  acceptance: 'OK',
+}
+const stageMark = computed(() => STAGE_MARKS[props.interrupt?.stage] || 'STEP')
 const countdownText = computed(() => {
   if (countdownPaused.value) return '已暂停自动确认'
   return `${secondsLeft.value} 秒后自动确认`

@@ -63,18 +63,26 @@ const props = defineProps({
 defineEmits(['close'])
 
 const roleDefs = [
-  { stage: 'ceo', key: 'brief', icon: '🏢', name: 'CEO' },
-  { stage: 'pm', key: 'features', icon: '📋', name: '产品经理' },
-  { stage: 'cto', key: 'tech_plan', icon: '🔧', name: 'CTO' },
-  { stage: 'backend', key: 'api_spec', icon: '🗄️', name: '后端工程师' },
-  { stage: 'frontend', key: 'ui_spec', icon: '🎨', name: '前端工程师' },
-  { stage: 'implementer', key: 'code_files', icon: '💻', name: '实现工程师' },
-  { stage: 'tester', key: 'test_report', icon: '🧪', name: '测试工程师' },
-  { stage: 'acceptance', key: 'acceptance', icon: '✅', name: '产品验收' },
+  { stage: 'ceo', key: 'brief', icon: 'CEO', name: 'CEO' },
+  { stage: 'market', key: 'market_reports', icon: 'MKT', name: '市场调研人员' },
+  { stage: 'design', key: 'design_reports', icon: 'DSN', name: '设计负责人' },
+  { stage: 'ceo_reviews', key: 'ceo_reviews', icon: 'REV', name: 'CEO 复核' },
+  { stage: 'ceo_synthesis', key: 'synthesis_report', icon: 'SYN', name: 'CEO 综合复核' },
+  { stage: 'pm', key: 'features', icon: 'PM', name: '产品经理' },
+  { stage: 'cto', key: 'tech_plan', icon: 'CTO', name: 'CTO' },
+  { stage: 'backend', key: 'api_spec', icon: 'API', name: '后端工程师' },
+  { stage: 'frontend', key: 'ui_spec', icon: 'UI', name: '前端工程师' },
+  { stage: 'implementer', key: 'code_files', icon: 'CODE', name: '实现工程师' },
+  { stage: 'tester', key: 'test_report', icon: 'QA', name: '测试工程师' },
+  { stage: 'acceptance', key: 'acceptance', icon: 'OK', name: '产品验收' },
 ]
 
 const stageComponents = {
   ceo: defineAsyncComponent(() => import('./stages/CeoStage.vue')),
+  market: defineAsyncComponent(() => import('./stages/ReportStage.vue')),
+  design: defineAsyncComponent(() => import('./stages/ReportStage.vue')),
+  ceo_reviews: defineAsyncComponent(() => import('./stages/ReportStage.vue')),
+  ceo_synthesis: defineAsyncComponent(() => import('./stages/ReportStage.vue')),
   pm: defineAsyncComponent(() => import('./stages/PmStage.vue')),
   cto: defineAsyncComponent(() => import('./stages/CtoStage.vue')),
   backend: defineAsyncComponent(() => import('./stages/BackendStage.vue')),
@@ -105,6 +113,9 @@ const selectedData = computed(() => {
       files: role.data.map(file => file.path || file.description || String(file)),
     }
   }
+  if (['market', 'design', 'ceo_reviews'].includes(role?.stage) && Array.isArray(role.data)) {
+    return role.data[role.data.length - 1] || null
+  }
   return role?.data
 })
 const selectedExtra = computed(() => {
@@ -134,6 +145,10 @@ function roleStateLabel(status, ready) {
 function summarize(stage, data) {
   if (!data) return '等待产出'
   if (stage === 'ceo') return data.project_name || '项目立项完成'
+  if (stage === 'market') return `${Array.isArray(data) ? data.length : 0} 个市场调研版本`
+  if (stage === 'design') return `${Array.isArray(data) ? data.length : 0} 个设计报告版本`
+  if (stage === 'ceo_reviews') return `${Array.isArray(data) ? data.length : 0} 条 CEO 复核`
+  if (stage === 'ceo_synthesis') return data.summary || 'CEO 综合复核完成'
   if (stage === 'pm') return `已拆解 ${data.features?.length || 0} 个功能`
   if (stage === 'cto') return [data.language, data.framework].filter(Boolean).join(' / ') || '技术方案完成'
   if (stage === 'backend') return `${data.data_models?.length || 0} 个模型，${data.endpoints?.length || 0} 个接口`

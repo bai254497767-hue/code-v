@@ -1,11 +1,19 @@
 """
 LangGraph 图定义
 
-流程拓扑（v3，顺序执行，含修复循环）：
+流程拓扑（v4，两轮前置报告 + 顺序开发链路）：
 
   START
     │
-  [CEO] → [PM] → [CTO] → [后端] → [前端]
+  [CEO] ─┬→ [市场调研 v1] → [CEO复核市场] ─┐
+         └→ [设计负责人 v1] → [CEO复核设计] ─┴→ [CEO综合复核]
+                                                        │
+              ┌← [市场调研 v2] ←────────────────────────┤
+              └← [设计负责人 v2] ←──────────────────────┘
+                                                        │
+                                               [报告断点/继续]
+                                                        │
+  (继续时) [PM] → [CTO] → [后端] → [前端]
                                       │
                              [代码实现] ←──┐  ← 循环（每模块一次）
                                   │         │
@@ -27,7 +35,11 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 
 from state import PipelineState
 from nodes import (
-    ceo_node, pm_node, cto_node,
+    ceo_node, market_research_v1_node, design_lead_v1_node,
+    ceo_review_market_node, ceo_review_design_node,
+    ceo_synthesis_review_node, market_research_v2_node, design_lead_v2_node,
+    report_breakpoint_node,
+    pm_node, cto_node,
     backend_node, frontend_node,
     implementer_node, tester_node, fixer_node, acceptance_node,
 )
@@ -60,6 +72,11 @@ def _route_after_fix(state: PipelineState) -> str:
     return "fixer" if (failed > 0 and attempts < MAX_FIX_ATTEMPTS) else "acceptance"
 
 
+def _route_after_report_breakpoint(state: PipelineState) -> str:
+    """第二轮报告完成后，根据项目开关决定暂停还是进入开发链路。"""
+    return "end" if state.get("stop_after_report_round_2") else "pm"
+
+
 # ── 图构建 ────────────────────────────────────────────────────────────────────
 
 def build_graph(db_path: str = "projects.db"):
@@ -70,19 +87,40 @@ def build_graph(db_path: str = "projects.db"):
     builder = StateGraph(PipelineState)
 
     # ── 注册节点 ───────────────────────────────────────────────────────────────
-    builder.add_node("ceo",         ceo_node)
-    builder.add_node("pm",          pm_node)
-    builder.add_node("cto",         cto_node)
-    builder.add_node("backend",     backend_node)
-    builder.add_node("frontend",    frontend_node)
-    builder.add_node("implementer", implementer_node)
-    builder.add_node("tester",      tester_node)
-    builder.add_node("fixer",       fixer_node)       # 新增
-    builder.add_node("acceptance",  acceptance_node)
+    builder.add_node("ceo",                  ceo_node)
+    builder.add_node("market_research_v1",   market_research_v1_node)
+    builder.add_node("design_lead_v1",       design_lead_v1_node)
+    builder.add_node("ceo_review_market",    ceo_review_market_node)
+    builder.add_node("ceo_review_design",    ceo_review_design_node)
+    builder.add_node("ceo_synthesis_review", ceo_synthesis_review_node)
+    builder.add_node("market_research_v2",   market_research_v2_node)
+    builder.add_node("design_lead_v2",       design_lead_v2_node)
+    builder.add_node("report_breakpoint",    report_breakpoint_node)
+    builder.add_node("pm",                   pm_node)
+    builder.add_node("cto",                  cto_node)
+    builder.add_node("backend",              backend_node)
+    builder.add_node("frontend",             frontend_node)
+    builder.add_node("implementer",          implementer_node)
+    builder.add_node("tester",               tester_node)
+    builder.add_node("fixer",                fixer_node)
+    builder.add_node("acceptance",           acceptance_node)
 
     # ── 顺序边 ────────────────────────────────────────────────────────────────
     builder.add_edge(START, "ceo")
-    builder.add_edge("ceo", "pm")
+    builder.add_edge("ceo", "market_research_v1")
+    builder.add_edge("ceo", "design_lead_v1")
+    builder.add_edge("market_research_v1", "ceo_review_market")
+    builder.add_edge("design_lead_v1", "ceo_review_design")
+    builder.add_edge(["ceo_review_market", "ceo_review_design"], "ceo_synthesis_review")
+    builder.add_edge("ceo_synthesis_review", "market_research_v2")
+    builder.add_edge("ceo_synthesis_review", "design_lead_v2")
+    builder.add_edge(["market_research_v2", "design_lead_v2"], "report_breakpoint")
+    builder.add_conditional_edges(
+        "report_breakpoint",
+        _route_after_report_breakpoint,
+        {"end": END, "pm": "pm"},
+    )
+
     builder.add_edge("pm",  "cto")
 
     # ── 顺序：CTO → 后端 → 前端（前端依赖 api_spec）────────────────────────

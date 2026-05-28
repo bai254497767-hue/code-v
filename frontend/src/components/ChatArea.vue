@@ -2,7 +2,7 @@
   <div class="chat-area">
     <!-- 空状态 -->
     <div v-if="!store.currentId" class="empty-state">
-      <div class="empty-icon">🏭</div>
+      <div class="empty-icon">AI</div>
       <div class="empty-title">AI 软件工厂</div>
       <div class="empty-desc">在左侧选择一个项目，或点击「新建项目」开始构建</div>
     </div>
@@ -22,16 +22,16 @@
               <button type="button" class="top-tool-btn" @click="openDrawer('progress')">
                 任务进度
               </button>
+              <button type="button" class="top-tool-btn" @click="openDrawer('debug')">
+                调试
+              </button>
             </div>
 
             <div class="model-control">
               <button type="button" class="model-pill" @click="openModelEditor">
-                <span class="model-pill-kicker">当前模型</span>
-                <span class="model-pill-name">{{ currentProviderName }}</span>
-                <span class="model-pill-version">{{ currentModelLabel }}</span>
-                <span class="model-pill-version">{{ currentEffortLabel }}</span>
-                <span class="model-pill-version">{{ currentSpeedLabel }}</span>
-                <span class="model-pill-action">修改</span>
+                <span class="model-pill-name">{{ currentProviderShort }}</span>
+                <span class="model-pill-separator">,</span>
+                <span class="model-pill-version">{{ currentModelShortLabel }}</span>
               </button>
 
               <div v-if="modelEditorOpen" class="model-editor-popover">
@@ -159,12 +159,12 @@
 
         <!-- 错误提示 -->
         <div v-if="store.wsStatus === 'error'" class="error-banner">
-          ⚠️ {{ store.errorMsg }}
+          ! {{ store.errorMsg }}
         </div>
 
         <!-- 完成横幅 -->
         <div v-if="store.wsStatus === 'done'" class="done-banner">
-          🎉 流水线完成！
+          完成 流水线完成！
         </div>
       </div>
 
@@ -181,6 +181,10 @@
         :task-context="store.taskContext"
         @close="activeDrawer = ''"
       />
+      <DebugDrawer
+        v-if="activeDrawer === 'debug'"
+        @close="activeDrawer = ''"
+      />
     </template>
   </div>
 </template>
@@ -192,6 +196,7 @@ import StageCard from './StageCard.vue'
 import ChatComposer from './ChatComposer.vue'
 import RoleOutputDrawer from './RoleOutputDrawer.vue'
 import TaskProgressDrawer from './TaskProgressDrawer.vue'
+import DebugDrawer from './DebugDrawer.vue'
 
 const store     = useProjectStore()
 const scrollRef = ref(null)
@@ -208,10 +213,19 @@ const pathExpanded = ref(false)
 
 const STATUS_LABELS = {
   idle: '待机', connecting: '连接中', running: '运行中',
-  waiting: '等待决策', done: '已完成', error: '错误',
+  waiting: '等待决策', done: '已完成', error: '错误', report_breakpoint: '报告断点',
 }
 const STAGE_LABELS = {
-  ceo: 'CEO', pm: '产品经理', cto: 'CTO', backend: '后端',
+  ceo: 'CEO',
+  market_research_v1: '市场调研 v1',
+  design_lead_v1: '设计负责人 v1',
+  ceo_review_market: 'CEO复核市场',
+  ceo_review_design: 'CEO复核设计',
+  ceo_synthesis_review: 'CEO综合复核',
+  market_research_v2: '市场调研 v2',
+  design_lead_v2: '设计负责人 v2',
+  report_breakpoint: '报告断点',
+  pm: '产品经理', cto: 'CTO', backend: '后端',
   frontend: '前端', implementer: '代码实现', fixer: '修复', tester: 'QA', acceptance: '验收',
 }
 
@@ -256,10 +270,15 @@ const currentProvider = computed(() =>
   providerOptions.value.find(p => p.id === currentProviderId.value) || providerOptions.value[0]
 )
 const currentProviderName = computed(() => currentProvider.value?.name || currentProviderId.value)
+const currentProviderShort = computed(() => {
+  if (currentProviderId.value === 'claude_cli') return 'claude'
+  return currentProviderId.value || 'codex'
+})
 const currentModel = computed(() => store.currentProject?.llm_model || currentProvider.value?.default_model || '')
 const currentEffort = computed(() => store.currentProject?.llm_effort || currentProvider.value?.default_effort || 'high')
 const currentSpeed = computed(() => store.currentProject?.llm_speed || currentProvider.value?.default_speed || 'standard')
 const currentModelLabel = computed(() => optionLabel(currentProvider.value?.model_options, currentModel.value) || currentModel.value || '默认模型')
+const currentModelShortLabel = computed(() => compactModelLabel(currentModelLabel.value))
 const currentEffortLabel = computed(() => `智能 ${optionLabel(currentProvider.value?.effort_options, currentEffort.value) || currentEffort.value}`)
 const currentSpeedLabel = computed(() => optionLabel(currentProvider.value?.speed_options, currentSpeed.value) || currentSpeed.value)
 const projectCodePath = computed(() =>
@@ -287,6 +306,16 @@ const draftProviderSpeedOptions = computed(() => draftProviderInfo.value?.speed_
 
 function optionLabel(options = [], value) {
   return (options || []).find(option => option.value === value)?.label || ''
+}
+
+function compactModelLabel(label = '') {
+  if (!label || label === '默认模型') return label || '默认模型'
+  return label
+    .replace(/^GPT-/i, 'chat_gpt ')
+    .replace(/^GPT/i, 'chat_gpt')
+    .replace(/-/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function eventKindLabel(kind) {

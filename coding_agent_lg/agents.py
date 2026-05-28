@@ -152,6 +152,215 @@ def llm_ceo(
     return _extract(raw, stage="CEO 项目立项")
 
 
+# ── 前置报告流程：CEO 澄清 / 市场调研 / 设计负责人 / CEO 复核 ────────────────
+
+def _latest_report(reports: list[dict] | None, version: int | None = None) -> dict:
+    items = list(reports or [])
+    if version is not None:
+        matches = [item for item in items if int(item.get("version") or 0) == version]
+        if matches:
+            return matches[-1]
+    return items[-1] if items else {}
+
+
+def _question_fallback(requirement: str) -> dict:
+    text = (requirement or "").strip()
+    should_ask = len(text) < 60 or any(word in text for word in ["随便", "简单", "大概", "看着办"])
+    return {
+        "needs_clarification": should_ask,
+        "question": "这个产品第一阶段最应该优先服务哪类目标用户？",
+        "options": ["企业内部运营人员", "普通个人用户", "小团队协作者"],
+        "reason": "需求中目标用户或业务优先级不够明确",
+    }
+
+
+def llm_ceo_clarification(
+    requirement: str,
+    *,
+    provider: str | None = None,
+    model: str | None = None,
+    effort: str | None = None,
+    speed: str | None = None,
+) -> dict:
+    system = """你是 AI 软件工厂 CEO。先判断用户需求是否存在会影响后续产品方向的关键不确定点。
+如果需求已经足够明确，needs_clarification 返回 false。
+如果需要澄清，只提出一个最关键问题，并给至少 3 个互斥选项。只能返回 <artifact> JSON。"""
+    user_msg = f"""用户需求：
+{requirement}
+
+请输出：
+<artifact>
+{{
+  "needs_clarification": true,
+  "question": "需要用户选择的问题",
+  "options": ["选项A", "选项B", "选项C"],
+  "reason": "为什么这个问题会影响后续报告"
+}}
+</artifact>"""
+    try:
+        raw = _call_llm(system, user_msg, provider=provider, model=model, effort=effort, speed=speed, stage="CEO 需求澄清判断")
+        data = _extract(raw, stage="CEO 需求澄清判断")
+    except Exception:
+        data = _question_fallback(requirement)
+    options = [str(item).strip() for item in (data.get("options") or []) if str(item).strip()]
+    data["options"] = (options + ["优先快速上线", "优先完整体验", "优先降低复杂度"])[: max(3, len(options))]
+    data["needs_clarification"] = bool(data.get("needs_clarification")) and len(data["options"]) >= 3
+    data.setdefault("question", "请补充一个会影响产品方向的关键选择。")
+    data.setdefault("reason", "")
+    return data
+
+
+def llm_market_research(
+    state: dict,
+    *,
+    version: int,
+    provider: str | None = None,
+    model: str | None = None,
+    effort: str | None = None,
+    speed: str | None = None,
+    feedback: str | None = None,
+) -> dict:
+    ceo_report = state.get("ceo_report") or state.get("brief") or {}
+    synthesis = state.get("synthesis_report") or {}
+    previous = _latest_report(state.get("market_reports"))
+    user_msg = f"""CEO 报告：
+{json.dumps(ceo_report, ensure_ascii=False, indent=2)}
+
+用户澄清记录：
+{json.dumps(state.get("user_clarifications") or [], ensure_ascii=False, indent=2)}
+
+上一版市场调研：
+{json.dumps(previous, ensure_ascii=False, indent=2)}
+
+CEO 综合复核：
+{json.dumps(synthesis, ensure_ascii=False, indent=2)}
+
+请生成市场调研报告 v{version}。{_feedback_block(feedback)}"""
+    system = """你是市场调研人员。围绕目标用户、竞品、机会点、风险和建议做产品前置市场调研。
+只能返回 <artifact> JSON，不要输出其他文字。"""
+    raw = _call_llm(system, user_msg, provider=provider, model=model, effort=effort, speed=speed, stage=f"市场调研 v{version}")
+    data = _extract(raw, stage=f"市场调研 v{version}")
+    data.setdefault("title", f"市场调研报告 v{version}")
+    data.setdefault("summary", data.get("conclusion") or data.get("overview") or "")
+    data["version"] = version
+    data["stage"] = f"market_research_v{version}"
+    return data
+
+
+def llm_design_lead(
+    state: dict,
+    *,
+    version: int,
+    provider: str | None = None,
+    model: str | None = None,
+    effort: str | None = None,
+    speed: str | None = None,
+    feedback: str | None = None,
+) -> dict:
+    ceo_report = state.get("ceo_report") or state.get("brief") or {}
+    synthesis = state.get("synthesis_report") or {}
+    market = _latest_report(state.get("market_reports"))
+    previous = _latest_report(state.get("design_reports"))
+    user_msg = f"""CEO 报告：
+{json.dumps(ceo_report, ensure_ascii=False, indent=2)}
+
+最新市场调研：
+{json.dumps(market, ensure_ascii=False, indent=2)}
+
+上一版设计负责人报告：
+{json.dumps(previous, ensure_ascii=False, indent=2)}
+
+CEO 综合复核：
+{json.dumps(synthesis, ensure_ascii=False, indent=2)}
+
+请生成设计负责人报告 v{version}，必须确定主题色、设计风格、表达语气、界面气质和关键体验原则。{_feedback_block(feedback)}"""
+    system = """你是设计负责人。你要把产品目标转成可执行的视觉与表达方向。
+只能返回 <artifact> JSON，不要输出其他文字。"""
+    raw = _call_llm(system, user_msg, provider=provider, model=model, effort=effort, speed=speed, stage=f"设计负责人 v{version}")
+    data = _extract(raw, stage=f"设计负责人 v{version}")
+    data.setdefault("title", f"设计负责人报告 v{version}")
+    data.setdefault("summary", data.get("design_direction") or data.get("overview") or "")
+    data["version"] = version
+    data["stage"] = f"design_lead_v{version}"
+    return data
+
+
+def llm_ceo_review_report(
+    state: dict,
+    *,
+    report_kind: str,
+    report: dict,
+    version: int,
+    provider: str | None = None,
+    model: str | None = None,
+    effort: str | None = None,
+    speed: str | None = None,
+) -> dict:
+    system = """你是 AI 软件工厂 CEO。你要审核角色报告是否能支撑下一轮生成。
+如果报告存在关键不确定项，可以提出一个用户选择题；否则 question 为空。
+只能返回 <artifact> JSON。"""
+    user_msg = f"""报告类型：{report_kind}
+报告版本：v{version}
+CEO 报告：
+{json.dumps(state.get("ceo_report") or {}, ensure_ascii=False, indent=2)}
+
+待审核报告：
+{json.dumps(report, ensure_ascii=False, indent=2)}
+
+请输出：
+<artifact>
+{{
+  "approved": true,
+  "summary": "审核摘要",
+  "feedback": "给下一轮的具体修订意见",
+  "question": "",
+  "options": [],
+  "reason": "审核理由"
+}}
+</artifact>"""
+    raw = _call_llm(system, user_msg, provider=provider, model=model, effort=effort, speed=speed, stage=f"CEO 复核 {report_kind} v{version}")
+    data = _extract(raw, stage=f"CEO 复核 {report_kind} v{version}")
+    data.setdefault("approved", True)
+    data.setdefault("summary", "")
+    data.setdefault("feedback", "")
+    data.setdefault("question", "")
+    options = [str(item).strip() for item in (data.get("options") or []) if str(item).strip()]
+    data["options"] = options
+    data["report_kind"] = report_kind
+    data["version"] = version
+    return data
+
+
+def llm_ceo_synthesis(
+    state: dict,
+    *,
+    provider: str | None = None,
+    model: str | None = None,
+    effort: str | None = None,
+    speed: str | None = None,
+) -> dict:
+    system = """你是 AI 软件工厂 CEO。你要综合市场调研 v1 和设计负责人 v1，形成第二轮生成指令。
+只能返回 <artifact> JSON。"""
+    user_msg = f"""CEO 报告：
+{json.dumps(state.get("ceo_report") or {}, ensure_ascii=False, indent=2)}
+
+市场调研报告：
+{json.dumps(_latest_report(state.get("market_reports"), 1), ensure_ascii=False, indent=2)}
+
+设计负责人报告：
+{json.dumps(_latest_report(state.get("design_reports"), 1), ensure_ascii=False, indent=2)}
+
+CEO 复核记录：
+{json.dumps(state.get("ceo_reviews") or [], ensure_ascii=False, indent=2)}
+
+请输出综合结论、第二轮市场调研修订重点、第二轮设计方向修订重点。"""
+    raw = _call_llm(system, user_msg, provider=provider, model=model, effort=effort, speed=speed, stage="CEO 综合复核")
+    data = _extract(raw, stage="CEO 综合复核")
+    data.setdefault("title", "CEO 综合复核")
+    data.setdefault("summary", data.get("conclusion") or "")
+    return data
+
+
 def _stage_status(state: dict) -> str:
     ready = []
     for key, label in [
@@ -172,7 +381,11 @@ def _stage_status(state: dict) -> str:
 
 def _dispatch_fallback(feedback: str) -> dict:
     text = feedback.lower()
-    if any(k in text for k in ["接口", "api", "数据库", "数据模型", "后端", "表"]):
+    if any(k in text for k in ["市场", "竞品", "用户画像", "定位", "机会", "调研"]):
+        target = "market_research_v2"
+    elif any(k in text for k in ["主题色", "风格", "语气", "品牌", "视觉", "设计方向"]):
+        target = "design_lead_v2"
+    elif any(k in text for k in ["接口", "api", "数据库", "数据模型", "后端", "表"]):
         target = "backend"
     elif any(k in text for k in ["页面", "界面", "前端", "按钮", "布局", "颜色", "ui"]):
         target = "frontend"
@@ -199,7 +412,7 @@ def llm_dispatch(state: dict, feedback: str, current_stage: str | None = None) -
     system = """你是 AI 软件工厂的 CEO 调度官。你的任务是根据用户的新意见，判断应该让哪个角色/阶段重做或修改。
 
 只能返回 <artifact> JSON，不要输出其他文字。
-target_stage 只能是 ceo、pm、cto、backend、frontend、implementer、tester、acceptance、none。
+target_stage 只能是 ceo、market_research_v2、design_lead_v2、pm、cto、backend、frontend、implementer、tester、acceptance、none。
 如果用户只是闲聊或没有明确修改需求，target_stage 用 none。
 feedback 要改写成给目标角色的清晰执行意见。"""
     state_summary = f"""当前阶段：{current_stage or '未知'}
@@ -236,7 +449,7 @@ API数量：{len((state.get('api_spec') or {}).get('endpoints', []))}
     except Exception:
         data = _dispatch_fallback(feedback)
 
-    allowed = {"ceo", "pm", "cto", "backend", "frontend", "implementer", "tester", "acceptance", "none"}
+    allowed = {"ceo", "market_research_v2", "design_lead_v2", "pm", "cto", "backend", "frontend", "implementer", "tester", "acceptance", "none"}
     if data.get("target_stage") not in allowed:
         data = _dispatch_fallback(feedback)
     data.setdefault("feedback", feedback)
