@@ -363,15 +363,37 @@ async def submit_project_decision(project_id: str, body: dict):
     _start_pipeline_if_needed(project_id, ctx)
 
     action = (body.get("action") or "continue").strip()
-    if action not in {"continue", "retry", "abort", "chat_submit", "request_interrupt"}:
+    if action not in {"continue", "retry", "abort", "chat_submit", "request_interrupt", "answer_question"}:
         raise HTTPException(status_code=400, detail=f"不支持的决策动作：{action}")
 
+    answer_text = (body.get("answer") or body.get("feedback") or "").strip()
     print(
         "[decision-http] submit "
         f"project={project_id} action={action} "
-        f"feedback_len={len((body.get('feedback') or body.get('message') or '').strip())}",
+        f"feedback_len={len((body.get('feedback') or body.get('message') or body.get('answer') or '').strip())}",
         flush=True,
     )
+
+    if action == "answer_question":
+        if not answer_text:
+            raise HTTPException(status_code=400, detail="自定义答案不能为空")
+        selected_options = body.get("selected_options") or []
+        print(
+            "[decision-http] question answer "
+            f"project={project_id} stage={body.get('stage') or ''} "
+            f"source={body.get('source') or 'custom'} selected={len(selected_options)} answer={answer_text[:120]}",
+            flush=True,
+        )
+        await ctx["decision_queue"].put({
+            "action": action,
+            "feedback": answer_text,
+            "answer": answer_text,
+            "selected_options": selected_options,
+            "stage": body.get("stage") or "",
+            "question": body.get("question") or "",
+            "source": body.get("source") or "custom",
+        })
+        return {"project_id": project_id, "status": "answered", "action": action}
 
     if action == "chat_submit":
         text = (body.get("message") or body.get("feedback") or "").strip()

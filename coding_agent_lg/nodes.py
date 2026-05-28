@@ -22,7 +22,7 @@ def _interrupt(stage: str, emoji: str, title: str, data: dict, extra: dict | Non
     return interrupt(payload)
 
 
-def _question_interrupt(stage: str, title: str, question: str, options: list[str], reason: str = "") -> dict:
+def _question_interrupt(stage: str, title: str, question: str, options: list[str], reason: str = "", allow_multiple: bool = False) -> dict:
     payload = {
         "type": "question",
         "stage": stage,
@@ -32,9 +32,11 @@ def _question_interrupt(stage: str, title: str, question: str, options: list[str
             "question": question,
             "options": options[:],
             "reason": reason,
+            "allow_multiple": allow_multiple,
         },
         "question": question,
         "options": options[:],
+        "allow_multiple": allow_multiple,
         "allow_custom_input": True,
         "context_stage": stage,
         "resume_target": stage,
@@ -46,7 +48,8 @@ def _question_interrupt(stage: str, title: str, question: str, options: list[str
     while True:
         answer = interrupt(payload)
         if isinstance(answer, dict):
-            text = str(answer.get("answer") or answer.get("feedback") or answer.get("value") or "").strip()
+            selected_options = [str(item).strip() for item in (answer.get("selected_options") or []) if str(item).strip()]
+            text = str(answer.get("answer") or answer.get("feedback") or answer.get("value") or "；".join(selected_options)).strip()
         else:
             text = str(answer or "").strip()
 
@@ -71,6 +74,7 @@ def _question_interrupt(stage: str, title: str, question: str, options: list[str
         "question": question,
         "answer": text,
         "options": options[:],
+        "allow_multiple": allow_multiple,
         "reason": reason,
         "created_at": time.time(),
     }
@@ -165,6 +169,7 @@ def ceo_node(state: PipelineState) -> dict:
                 check.get("question") or "请补充关键选择。",
                 check.get("options") or ["优先快速上线", "优先完整体验", "优先降低复杂度"],
                 check.get("reason") or "",
+                bool(check.get("allow_multiple")),
             )
             clarification_update = [item]
             clarifications = clarification_update
@@ -217,6 +222,7 @@ def ceo_review_market_node(state: PipelineState) -> dict:
             review["question"],
             review["options"],
             review.get("reason") or "",
+            bool(review.get("allow_multiple")),
         )]
         answer_text = clarifications[0].get("answer") or ""
         if answer_text:
@@ -239,6 +245,7 @@ def ceo_review_design_node(state: PipelineState) -> dict:
             review["question"],
             review["options"],
             review.get("reason") or "",
+            bool(review.get("allow_multiple")),
         )]
         answer_text = clarifications[0].get("answer") or ""
         if answer_text:

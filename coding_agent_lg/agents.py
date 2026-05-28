@@ -170,6 +170,7 @@ def _question_fallback(requirement: str) -> dict:
         "needs_clarification": should_ask,
         "question": "这个产品第一阶段最应该优先服务哪类目标用户？",
         "options": ["企业内部运营人员", "普通个人用户", "小团队协作者"],
+        "allow_multiple": False,
         "reason": "需求中目标用户或业务优先级不够明确",
     }
 
@@ -184,7 +185,10 @@ def llm_ceo_clarification(
 ) -> dict:
     system = """你是 AI 软件工厂 CEO。先判断用户需求是否存在会影响后续产品方向的关键不确定点。
 如果需求已经足够明确，needs_clarification 返回 false。
-如果需要澄清，只提出一个最关键问题，并给至少 3 个互斥选项。只能返回 <artifact> JSON。"""
+如果需要澄清，只提出一个最关键问题，并给至少 3 个选项。
+把你最推荐的选项放在 options 第一个。
+如果这些选项彼此互斥，allow_multiple 返回 false；如果选项可以并列选择且不冲突，allow_multiple 返回 true。
+只能返回 <artifact> JSON。"""
     user_msg = f"""用户需求：
 {requirement}
 
@@ -194,6 +198,7 @@ def llm_ceo_clarification(
   "needs_clarification": true,
   "question": "需要用户选择的问题",
   "options": ["选项A", "选项B", "选项C"],
+  "allow_multiple": false,
   "reason": "为什么这个问题会影响后续报告"
 }}
 </artifact>"""
@@ -205,6 +210,7 @@ def llm_ceo_clarification(
     options = [str(item).strip() for item in (data.get("options") or []) if str(item).strip()]
     data["options"] = (options + ["优先快速上线", "优先完整体验", "优先降低复杂度"])[: max(3, len(options))]
     data["needs_clarification"] = bool(data.get("needs_clarification")) and len(data["options"]) >= 3
+    data["allow_multiple"] = bool(data.get("allow_multiple"))
     data.setdefault("question", "请补充一个会影响产品方向的关键选择。")
     data.setdefault("reason", "")
     return data
@@ -298,6 +304,7 @@ def llm_ceo_review_report(
 ) -> dict:
     system = """你是 AI 软件工厂 CEO。你要审核角色报告是否能支撑下一轮生成。
 如果报告存在关键不确定项，可以提出一个用户选择题；否则 question 为空。
+如果提出选择题，把最推荐选项放在 options 第一个；选项互斥时 allow_multiple=false，可并列选择时 allow_multiple=true。
 只能返回 <artifact> JSON。"""
     user_msg = f"""报告类型：{report_kind}
 报告版本：v{version}
@@ -315,6 +322,7 @@ CEO 报告：
   "feedback": "给下一轮的具体修订意见",
   "question": "",
   "options": [],
+  "allow_multiple": false,
   "reason": "审核理由"
 }}
 </artifact>"""
@@ -326,6 +334,7 @@ CEO 报告：
     data.setdefault("question", "")
     options = [str(item).strip() for item in (data.get("options") or []) if str(item).strip()]
     data["options"] = options
+    data["allow_multiple"] = bool(data.get("allow_multiple"))
     data["report_kind"] = report_kind
     data["version"] = version
     return data

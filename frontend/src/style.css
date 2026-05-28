@@ -1785,7 +1785,8 @@ button, input, textarea, select {
   line-height: 1.45;
 }
 .question-reason,
-.question-custom-hint {
+.question-custom-hint,
+.question-mode-hint {
   color: var(--text-muted);
   font-size: 12px;
   line-height: 1.45;
@@ -1806,13 +1807,52 @@ button, input, textarea, select {
   cursor: pointer;
 }
 .question-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 10px;
 }
 .question-option:hover,
+.question-option.selected,
 .version-tab:hover,
 .version-tab.active {
   border-color: var(--primary);
   background: var(--primary-soft);
+}
+.question-option.recommended {
+  border-color: var(--primary);
+}
+.question-check,
+.question-recommended {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  font-size: 11px;
+  font-weight: 900;
+}
+.question-recommended {
+  min-width: auto;
+  padding: 0 6px;
+}
+.question-submit {
+  align-self: flex-start;
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: #fff;
+  font-weight: 900;
+  cursor: pointer;
+}
+.question-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 .composer-row {
   display: flex;

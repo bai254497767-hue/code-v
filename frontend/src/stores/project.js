@@ -639,6 +639,44 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
+  async function answerQuestion(answer, source = 'custom', selectedOptions = []) {
+    const text = (answer || '').trim()
+    if (!text || !currentId.value) return
+    const intr = pendingInterrupt.value || {}
+    console.info('[code-v:question-answer]', {
+      projectId: currentId.value,
+      stage: intr.stage,
+      source,
+      answerLength: text.length,
+      selectedCount: selectedOptions.length,
+    })
+    const res = await fetch(`${API}/api/projects/${encodeURIComponent(currentId.value)}/decisions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'answer_question',
+        answer: text,
+        feedback: text,
+        stage: intr.stage,
+        question: intr.question || intr.data?.question || '',
+        source,
+        selected_options: selectedOptions,
+      }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.detail || data.error || '提交选择答案失败')
+
+    pendingInterrupt.value = null
+    wsStatus.value = 'running'
+    _appendChat('user', text, {
+      id: `question-answer-${Date.now()}`,
+      stage: intr.stage,
+      question: intr.question || intr.data?.question || '',
+      source,
+    })
+    return data
+  }
+
   async function submitChat(message) {
     const text = (message || '').trim()
     if (!text || !currentId.value) return
@@ -683,7 +721,7 @@ export const useProjectStore = defineStore('project', () => {
     // actions
     fetchProjects, fetchLlmProviders, createProject, pickProjectFolder,
     updateProjectModel, renameProject, deleteProject, selectProject,
-    connectEvents, closeEvents, sendDecision, submitChat, requestInterrupt,
+    connectEvents, closeEvents, sendDecision, answerQuestion, submitChat, requestInterrupt,
     fetchDebugTimeline, enableDebugMode, disableDebugMode,
     fetchDebugCheckpoint, rerunDebugCheckpoint,
   }

@@ -14,20 +14,40 @@
 
     <div v-if="isQuestionInterrupt" class="question-popover">
       <div class="question-title">{{ store.pendingInterrupt.question }}</div>
+      <div v-if="questionAllowsMultiple" class="question-mode-hint">
+        可多选，第一项为 CEO 推荐优先项。
+      </div>
+      <div v-else class="question-mode-hint">
+        单选，第一项为 CEO 推荐优先项。
+      </div>
       <div v-if="store.pendingInterrupt.data?.reason" class="question-reason">
         {{ store.pendingInterrupt.data.reason }}
       </div>
       <div class="question-options">
         <button
-          v-for="option in questionOptions"
+          v-for="(option, index) in questionOptions"
           :key="option"
           type="button"
           class="question-option"
-          @click="answerQuestion(option)"
+          :class="{ selected: selectedQuestionOptions.includes(option), recommended: index === 0 }"
+          @click="questionAllowsMultiple ? toggleQuestionOption(option) : answerQuestion(option)"
         >
+          <span v-if="questionAllowsMultiple" class="question-check">
+            {{ selectedQuestionOptions.includes(option) ? '✓' : '+' }}
+          </span>
+          <span v-if="index === 0" class="question-recommended">推荐</span>
           {{ option }}
         </button>
       </div>
+      <button
+        v-if="questionAllowsMultiple"
+        class="question-submit"
+        type="button"
+        :disabled="selectedQuestionOptions.length === 0 || submitting"
+        @click="submitSelectedQuestionOptions"
+      >
+        提交已选 {{ selectedQuestionOptions.length }} 项
+      </button>
       <div class="question-custom-hint">也可以在下方输入自定义答案后发送。</div>
     </div>
 
@@ -46,7 +66,7 @@
         v-model="draft"
         class="composer-input"
         rows="2"
-        placeholder="随时输入修改意见，例如：后端接口加搜索参数，或页面改成表格视图。"
+        :placeholder="inputPlaceholder"
         @input="pauseCountdown"
         @keydown.meta.enter.prevent="submit"
         @keydown.ctrl.enter.prevent="submit"
@@ -84,11 +104,15 @@ const error = ref('')
 const submitting = ref(false)
 const secondsLeft = ref(AUTO_CONFIRM_SECONDS)
 const countdownPaused = ref(false)
+const selectedQuestionOptions = ref([])
 let timerId = null
 
 const hasDraft = computed(() => draft.value.trim().length > 0)
 const isQuestionInterrupt = computed(() =>
   Boolean(store.pendingInterrupt?.allow_custom_input && store.pendingInterrupt?.question)
+)
+const questionAllowsMultiple = computed(() =>
+  Boolean(store.pendingInterrupt?.allow_multiple || store.pendingInterrupt?.data?.allow_multiple)
 )
 const questionOptions = computed(() =>
   (store.pendingInterrupt?.options || store.pendingInterrupt?.data?.options || []).slice(0, 6)
@@ -98,6 +122,10 @@ const primaryText = computed(() => {
   if (hasDraft.value) return '发送给 CEO'
   if (store.pendingInterrupt) return '确认继续'
   return '发送'
+})
+const inputPlaceholder = computed(() => {
+  if (isQuestionInterrupt.value) return '输入自定义答案，例如：优先服务中小车商内部 CRM 场景。'
+  return '随时输入修改意见，例如：后端接口加搜索参数，或页面改成表格视图。'
 })
 const countdownText = computed(() => {
   if (countdownPaused.value) return '已暂停自动确认'
@@ -132,6 +160,7 @@ function resetTimer() {
   stopTimer()
   secondsLeft.value = AUTO_CONFIRM_SECONDS
   countdownPaused.value = false
+  selectedQuestionOptions.value = []
   if (store.pendingInterrupt && !isQuestionInterrupt.value && !hasDraft.value && store.feedbackQueue.length === 0) {
     timerId = window.setInterval(() => {
       if (countdownPaused.value) return
@@ -175,7 +204,7 @@ async function submit() {
   try {
     if (text) {
       if (isQuestionInterrupt.value) {
-        await store.sendDecision('continue', text)
+        await store.answerQuestion(text, 'custom')
         draft.value = ''
         resetTimer()
         return
@@ -200,7 +229,30 @@ async function answerQuestion(option) {
   submitting.value = true
   error.value = ''
   try {
-    await store.sendDecision('continue', option)
+    await store.answerQuestion(option, 'option')
+    draft.value = ''
+    resetTimer()
+  } catch (e) {
+    error.value = e.message || '提交答案失败'
+  } finally {
+    submitting.value = false
+  }
+}
+
+function toggleQuestionOption(option) {
+  pauseCountdown()
+  selectedQuestionOptions.value = selectedQuestionOptions.value.includes(option)
+    ? selectedQuestionOptions.value.filter(item => item !== option)
+    : [...selectedQuestionOptions.value, option]
+}
+
+async function submitSelectedQuestionOptions() {
+  if (submitting.value || selectedQuestionOptions.value.length === 0) return
+  submitting.value = true
+  error.value = ''
+  try {
+    const answer = selectedQuestionOptions.value.join('；')
+    await store.answerQuestion(answer, 'multi_option', selectedQuestionOptions.value)
     draft.value = ''
     resetTimer()
   } catch (e) {

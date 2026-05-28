@@ -1746,7 +1746,9 @@ async def _handle_interrupts(
                 if action == "abort":
                     await event_sink.put({"type": "complete", "state": {}})
                     return None
-                if feedback and feedback.lower() not in {"continue", "retry", "abort"}:
+                if action == "answer_question" and feedback:
+                    break
+                if action != "answer_question" and feedback and feedback.lower() not in {"continue", "retry", "abort"}:
                     break
                 await event_sink.put({
                     **payload,
@@ -1777,7 +1779,7 @@ async def _handle_interrupts(
                     await event_sink.put({"type": "error", "message": "决策超时，流水线已暂停"})
                     return None
                 action = decision.get("action", "continue")
-                feedback = (decision.get("feedback") or "").strip()
+                feedback = (decision.get("answer") or decision.get("feedback") or "").strip()
                 print(
                     "[decision] received after invalid "
                     f"project={project_id} stage={stage} action={action} feedback_len={len(feedback)}",
@@ -1788,6 +1790,8 @@ async def _handle_interrupts(
                 "action": action,
                 "question": payload.get("question"),
                 "stage": stage,
+                "source": decision.get("source") or "custom",
+                "selected_options": decision.get("selected_options") or [],
             }
             if interrupt_id:
                 ctx["pending_interrupts"] = []
