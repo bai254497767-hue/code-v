@@ -136,6 +136,8 @@ async def create_project(body: dict):
         "design_reports":      [],
         "ceo_reviews":         [],
         "user_clarifications": [],
+        "ceo_clarification_answered": False,
+        "ceo_clarification":    None,
         "synthesis_report":    None,
         "report_breakpoint":   None,
         # 可选字段全部初始化为 None / 空，防止 KeyError

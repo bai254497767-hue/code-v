@@ -51,6 +51,8 @@ class PipelineState(TypedDict):
     design_reports: Annotated[list[dict], operator.add]
     ceo_reviews: Annotated[list[dict], operator.add]
     user_clarifications: Annotated[list[dict], operator.add]
+    ceo_clarification_answered: Optional[bool]
+    ceo_clarification: Optional[dict]
     synthesis_report: Optional[dict]
     report_breakpoint: Optional[dict]
 

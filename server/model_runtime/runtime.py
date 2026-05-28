@@ -1803,6 +1803,10 @@ async def _handle_interrupts(
             }
             if stage == "ceo":
                 ctx["pending_interrupts"] = []
+                _set_state_value(project_id, {
+                    "ceo_clarification_answered": True,
+                    "ceo_clarification": value,
+                })
                 print(
                     "[decision] route answered ceo question back to ceo node with persisted clarification "
                     f"project={project_id} answer={feedback[:80]}",
@@ -1810,7 +1814,11 @@ async def _handle_interrupts(
                 )
                 return Command(
                     goto="ceo",
-                    update={"user_clarifications": [value]},
+                    update={
+                        "user_clarifications": [value],
+                        "ceo_clarification_answered": True,
+                        "ceo_clarification": value,
+                    },
                 )
             if interrupt_id:
                 ctx["pending_interrupts"] = []

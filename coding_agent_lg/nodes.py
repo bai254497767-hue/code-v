@@ -165,8 +165,12 @@ def ceo_node(state: PipelineState) -> dict:
     print("  ⏳ CEO 正在分析需求...")
     emit_progress("stage_started", "CEO 正在分析项目需求", stage="ceo")
     clarifications = list(state.get("user_clarifications") or [])
+    stored_clarification = state.get("ceo_clarification")
+    if stored_clarification and not clarifications:
+        clarifications = [stored_clarification]
+    clarification_answered = bool(state.get("ceo_clarification_answered")) or bool(clarifications)
     clarification_update = []
-    if not clarifications:
+    if not clarification_answered:
         check = agents.llm_ceo_clarification(state["requirement"], **_llm_options(state))
         if check.get("needs_clarification"):
             item = _question_interrupt(
@@ -179,6 +183,7 @@ def ceo_node(state: PipelineState) -> dict:
             )
             clarification_update = [item]
             clarifications = clarification_update
+            clarification_answered = True
     enriched_requirement = state["requirement"]
     if clarifications:
         answers = "\n".join(f"- {item.get('question')}：{item.get('answer')}" for item in clarifications if item.get("answer"))
@@ -190,6 +195,8 @@ def ceo_node(state: PipelineState) -> dict:
         "brief": brief,
         "ceo_report": brief,
         "user_clarifications": clarification_update,
+        "ceo_clarification_answered": clarification_answered,
+        "ceo_clarification": clarifications[-1] if clarifications else stored_clarification,
         "active_stage": "ceo",
         **_clear_feedback("ceo"),
     }
